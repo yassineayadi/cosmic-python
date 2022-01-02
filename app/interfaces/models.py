@@ -31,8 +31,14 @@ order_items = Table(
 orders = Table(
     "orders",
     mapper_registry.metadata,
-    Column("uuid", GUID, primary_key=True),
+    Column("uuid", GUID, ForeignKey("skus.uuid"), primary_key=True),
     Column("order_items", String(36)),
+)
+
+products = Table(
+    "products",
+    mapper_registry.metadata,
+    Column("_sku_id", GUID, ForeignKey("skus.uuid"), primary_key=True),
 )
 
 batches = Table(
@@ -40,6 +46,7 @@ batches = Table(
     mapper_registry.metadata,
     Column("uuid", GUID, primary_key=True),
     Column("_sku_id", GUID, ForeignKey("skus.uuid")),
+    Column("_product_id", GUID, ForeignKey("products._sku_id")),
     Column("quantity", Integer),
     Column("eta", Date),
     Column("available_quantity", Integer),
@@ -95,3 +102,19 @@ def start_mappers():
             },
         )
         mapper_registry.map_imperatively(domain.Order, orders)
+        mapper_registry.map_imperatively(
+            domain.Product,
+            products,
+            properties={
+                "batches": relationship(
+                    domain.Batch,
+                    backref="product",
+                    lazy="subquery",
+                    cascade="all",
+                    collection_class=set,
+                ),
+                "sku": relationship(
+                    domain.SKU, backref="product", lazy="subquery", cascade="all"
+                ),
+            },
+        )

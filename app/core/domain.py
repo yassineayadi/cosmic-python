@@ -5,6 +5,14 @@ from typing import Dict, List, Optional, Set
 from uuid import UUID, uuid4
 
 
+class OutOfStock(Exception):
+    pass
+
+
+class NonMatchingSKU(Exception):
+    pass
+
+
 @dataclass
 class DomainObj(ABC):
     uuid: UUID
@@ -101,17 +109,38 @@ class Batch(DomainObj):
         return self.eta < other.eta
 
 
-class OutOfStock(Exception):
-    pass
+@dataclass
+class Product:
+
+    sku: SKU
+    batches: Set[Batch] = field(default_factory=set)
+
+    def allocate(self, order_item: OrderItem) -> Batch:
+        try:
+            allocatable_batch = next(
+                batch
+                for batch in sorted(self.batches)
+                if batch.can_allocate(order_item)
+            )
+            allocatable_batch.allocate_available_quantity(order_item)
+            return allocatable_batch
+        except StopIteration as err:
+            raise OutOfStock(f"{order_item.sku!r} is Out of Stock.") from err
+
+    def register_batch(self, batch: Batch) -> None:
+        if batch.sku == self.sku:
+            self.batches.add(batch)
+        else:
+            raise NonMatchingSKU(f"The batch {batch} does not match the Product SKU.")
 
 
-def allocate(order_item: OrderItem, batches: List[Batch]) -> Set[Batch]:
-    allocated_batches = set(
-        batch for batch in batches if batch.can_allocate(order_item)
-    )
-    if allocated_batches:
-        return allocated_batches
-    raise OutOfStock(f"{order_item.sku!r} is Out of Stock.")
+# def allocate(order_item: OrderItem, batches: List[Batch]) -> Set[Batch]:
+#     allocated_batches = set(
+#         batch for batch in batches if batch.can_allocate(order_item)
+#     )
+#     if allocated_batches:
+#         return allocated_batches
+#     raise OutOfStock(f"{order_item.sku!r} is Out of Stock.")
 
 
 def create_sku(sku_name) -> SKU:

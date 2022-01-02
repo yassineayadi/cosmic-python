@@ -60,7 +60,7 @@ class ABCRepo(ABC):
         pass
 
 
-class Repo(ABCRepo):
+class ProductRepo(ABCRepo):
     def __init__(self, interface: SQLiteInterface = SQLiteInterface()):
         self.interface = interface
 
@@ -117,8 +117,6 @@ class UnitOfWorkABC(ABC):
     @abstractmethod
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.repo.close()
-        # https://docs.sqlalchemy.org/en/14/orm/contextual.html#sqlalchemy.orm.scoping.scoped_session
-        # self.scoped_session.remove()
 
 
 class UnitofWork(UnitOfWorkABC):
@@ -153,7 +151,12 @@ class MockRepo(ABCRepo, Dict):
             self.update({value.uuid: value})
 
 
-repos = {"development": Repo, "testing": Repo, "default": Repo, "mock": MockRepo}
+repos = {
+    "development": ProductRepo,
+    "testing": ProductRepo,
+    "default": ProductRepo,
+    "mock": MockRepo,
+}
 
 
 def get_current_repo(config_name=None) -> ABCRepo:
