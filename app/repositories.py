@@ -1,165 +1,202 @@
+import copy
 import os
+import sys
+import traceback
 from abc import ABC, abstractmethod
-from typing import Dict, List, Type
+from functools import reduce
+from sqlite3 import OperationalError
+from typing import Dict, List, Set, Type
 
-from app.core.domain import SKU, DomainObj, OrderItem
-from app.interfaces import SQLiteInterface
+from sqlalchemy.orm import Session
+
+from app.core.domain import SKU, Batch, OrderItem, Product
+from app.interfaces import SessionFactory
 
 
-class ABCRepo(ABC):
+class AbstractRepo(ABC):
     @abstractmethod
-    def get(self, obj: Type[DomainObj], reference) -> DomainObj:
-        """Retrieves object of type obj: with reference:"""
+    def get(self, reference) -> Product:
+        """Retrieves Product by reference."""
         ...
 
     @abstractmethod
-    def open_session(self):
+    def get_all_batches(self) -> Set[Batch]:
+        """Retrieves all batches currently registered."""
         ...
 
     @abstractmethod
-    def add(self, obj: DomainObj) -> None:
-        """Adds individual object to persistent storage."""
+    def add(self, product: Product) -> None:
+        """Adds individual Product to persistent storage."""
         ...
 
     @abstractmethod
-    def add_all(self, objs: List[DomainObj]) -> None:
-        """Adds list of objects to persistent storage."""
+    def add_all(self, products: List[Product]) -> None:
+        """Adds list of Product  to persistent storage."""
         ...
 
     @abstractmethod
-    def list(self, obj: Type[DomainObj]) -> List[DomainObj]:
-        """Lists all objects of a given type."""
+    def list(self) -> List[Product]:
+        """Lists all Product."""
         ...
 
     @abstractmethod
+    def delete(self, product: Product) -> None:
+        """Deletes Product from persistent storage layer."""
+
+
+class ProductsRepo(AbstractRepo):
+    def __init__(self, session: Session):
+        self.session = session
+
+    def get(self, reference) -> Product:
+        return self.session.get(Product, reference)
+
+    def add(self, product: Product) -> None:
+        self.session.add(product)
+
+    def add_all(self, products: List[Product]) -> None:
+        self.session.add_all(products)
+
+    def list(self) -> List[Product]:
+        return self.session.query(Product).all()
+
+    def delete(self, product: Product) -> None:
+        self.session.delete(product)
+
+    def get_by_sku_uuid(self, uuid):
+        return self.session.get(Product, uuid)
+
+    def get_all_skus(self) -> List[SKU]:
+        return [p.sku for p in self.list()]
+
+    def get_all_order_items(self) -> Set[OrderItem]:
+        order_item_sets = {order_item for order_item in self.list()}
+        order_items = reduce(lambda a, b: {*a, *b}, order_item_sets)
+        return order_items
+
+    def get_all_batches(self) -> Set[Batch]:
+        batch_sets = [p.batches for p in self.list()]
+        batches = reduce(lambda a, b: {*a, *b}, batch_sets)
+        return batches
+
+
+class MockRepo(AbstractRepo, Dict):
+    def add(self, product):
+        self[product.sku_id] = product
+
+    def get(self, reference):
+        return self.__getitem__(reference)
+
+    def list(self) -> List[Product]:
+        return list(self.values())
+
+    def add_all(self, products: List[Product]) -> None:
+        for prod in products:
+            self.update({prod.sku_id: prod})
+
+
+class AbstractUnitOfWork(ABC):
+    @abstractmethod
+    def __init__(self, factory: SessionFactory):
+        """Initializes UnitOfWork with repository and session factory."""
+        self.session_factory = factory
+
+    @abstractmethod
+    def __enter__(self):
+        """Creates a scoped with the provided session factory."""
+        ...
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Handles raised errors in with black or on commit."""
+        ...
+
     def close(self) -> None:
-        """Closes existing connection with persistent storage."""
-        ...
+        return self._close()
 
-    @abstractmethod
-    def refresh(self, obj: DomainObj) -> None:
-        """Refreshes object with persistent storage changes."""
-        ...
-
-    @abstractmethod
-    def delete(self, obj: DomainObj) -> None:
-        """Deletes object from persistent storage layer."""
-
-    @abstractmethod
     def commit(self) -> None:
-        """Commits changes to persistent storage."""
-        ...
+        return self._commit()
+
+    def rollback(self):
+        return self._rollback()
 
     @abstractmethod
-    def merge(self, obj: DomainObj, **kwargs) -> DomainObj:
-        """Merges object instance with session attached object instance."""
-        ...
+    def _close(self):
+        raise NotImplementedError
 
     @abstractmethod
-    def revert(self):
-        pass
+    def _commit(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _rollback(self):
+        raise NotImplementedError
 
 
-class ProductRepo(ABCRepo):
-    def __init__(self, interface: SQLiteInterface = SQLiteInterface()):
-        self.interface = interface
+class MockUnitOfWork(AbstractUnitOfWork):
+    def __init__(self, repo: MockRepo):
+        self.repo = repo
+        self.previous_repo_version = copy.deepcopy(repo)
 
-    def open_session(self):
-        self.session = self.interface.create_interface(expire_on_commit=False)
+    def __enter__(self):
+        return self
 
-    def get(self, obj: Type[DomainObj], reference) -> DomainObj:
-        return self.session.get(obj, reference)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.repo = self.previous_repo_version
 
-    def add(self, obj: DomainObj) -> None:
-        self.session.add(obj)
+    def _close(self):
+        ...
 
-    def add_all(self, objs: List[DomainObj]) -> None:
-        self.session.add_all(objs)
+    def _commit(self):
+        self.previous_repo_version = self.repo
 
-    def list(self, obj: Type[DomainObj]) -> List[DomainObj]:
-        return self.session.query(obj).all()
+    def _rollback(self):
+        self.repo = self.previous_repo_version
 
-    def delete(self, obj: DomainObj) -> None:
-        self.session.delete(obj)
 
-    def close(self) -> None:
+class UnitOfWork(AbstractUnitOfWork):
+    session: Session
+    products: ProductsRepo
+
+    def __init__(self, session_factory: SessionFactory):
+        self.session_factory = session_factory
+
+    def __enter__(self):
+        self.session = self.session_factory()
+        self.products = ProductsRepo(self.session)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.rollback()
+        try:
+            self.session.commit()
+        except OperationalError:
+            self.session.rollback()
+        finally:
+            self.session.close()
+
+    def _close(self) -> None:
         if self.session.is_active:
             self.session.close()
 
-    def commit(self) -> None:
+    def _commit(self):
         self.session.commit()
 
-    def refresh(self, obj: DomainObj) -> None:
-        self.session.refresh(obj)
-
-    def merge(self, obj: DomainObj, **kwargs) -> DomainObj:
-        return self.session.merge(obj, **kwargs)
-
-    def revert(self):
+    def _rollback(self):
         self.session.rollback()
-
-    # @property
-    # def is_open(self) -> bool:
-    #     return self.session.is_active
-
-
-class UnitOfWorkABC(ABC):
-    @abstractmethod
-    def __init__(self, repo: ABCRepo):
-        self.repo = repo
-
-    @abstractmethod
-    def __enter__(self):
-        """scoped session"""
-        self.repo.open_session()
-        return self
-
-    @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.repo.close()
-
-
-class UnitofWork(UnitOfWorkABC):
-    def __init__(self, repo: ABCRepo):
-        self.repo = repo
-
-    def __enter__(self):
-        self.repo.open_session()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            self.repo.commit()
-        except:
-            self.repo.revert()
-        finally:
-            self.repo.close()
-
-
-class MockRepo(ABCRepo, Dict):
-    def add(self, obj):
-        self[obj.uuid] = obj
-
-    def get(self, obj: Type[DomainObj], reference):
-        return self.__getitem__(reference)
-
-    def list(self, obj: Type[DomainObj]) -> List:
-        return list(self.values())
-
-    def add_all(self, values: List) -> None:
-        for value in values:
-            self.update({value.uuid: value})
 
 
 repos = {
-    "development": ProductRepo,
-    "testing": ProductRepo,
-    "default": ProductRepo,
+    "development": ProductsRepo,
+    "testing": MockRepo,
+    "default": ProductsRepo,
     "mock": MockRepo,
 }
 
 
-def get_current_repo(config_name=None) -> ABCRepo:
+def get_current_repo(config_name=None) -> AbstractRepo:
     if not config_name:
         config_name = os.environ.get("ENV") or "default"
     repo_class = repos[config_name]

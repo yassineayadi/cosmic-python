@@ -4,19 +4,20 @@ from datetime import date
 from typing import Dict, List, Optional, Set
 from uuid import UUID, uuid4
 
-
-class OutOfStock(Exception):
-    pass
+from app.core.events import Event, OutOfStockEvent
 
 
 class NonMatchingSKU(Exception):
     pass
 
 
+class AllocationError(Exception):
+    pass
+
+
 @dataclass
 class DomainObj(ABC):
     uuid: UUID
-    ...
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -60,8 +61,8 @@ class Order(DomainObj):
 @dataclass
 class Batch(DomainObj):
 
-    uuid: UUID
     sku: SKU
+    uuid: UUID
     quantity: int
     eta: Optional[date] = None
     allocated_order_items: Set[OrderItem] = field(default_factory=set)
@@ -82,6 +83,8 @@ class Batch(DomainObj):
             self.allocated_order_items.remove(order_item)
 
     def can_allocate(self, order_item: OrderItem) -> bool:
+        if order_item in self.allocated_order_items:
+            raise AllocationError(f"{order_item} already allocated to {self}.")
         if (
             self.available_quantity >= order_item.quantity
             and self.sku == order_item.sku
@@ -113,7 +116,14 @@ class Batch(DomainObj):
 class Product:
 
     sku: SKU
+    sku_id: Optional[UUID] = None
+    events: List[Event] = field(default_factory=list)
     batches: Set[Batch] = field(default_factory=set)
+    # order_items: Set[OrderItem] = field(default_factory=set)
+    version_number: int = field(default=0)
+
+    def __post_init__(self):
+        self.sku_id = self.sku.uuid
 
     def allocate(self, order_item: OrderItem) -> Batch:
         try:
@@ -123,24 +133,36 @@ class Product:
                 if batch.can_allocate(order_item)
             )
             allocatable_batch.allocate_available_quantity(order_item)
+            self._increment_version()
             return allocatable_batch
-        except StopIteration as err:
-            raise OutOfStock(f"{order_item.sku!r} is Out of Stock.") from err
+        except StopIteration:
+            event = OutOfStockEvent(self.sku.uuid)
+            self.events.append(event)
 
     def register_batch(self, batch: Batch) -> None:
         if batch.sku == self.sku:
             self.batches.add(batch)
+            self._increment_version()
         else:
             raise NonMatchingSKU(f"The batch {batch} does not match the Product SKU.")
+    #
+    # def register_order_item(self, order_item: OrderItem) -> None:
+    #     if order_item.sku == self.sku:
+    #         self.order_items.add(order_item)
+    #         self._increment_version()
+    #     else:
+    #         raise NonMatchingSKU(f"The order item {order_item} does not match the Product SKU.")
 
+    @property
+    def order_items(self) -> List[OrderItem]:
+        return [
+            order_item
+            for batch in self.batches
+            for order_item in batch.allocated_order_items
+        ]
 
-# def allocate(order_item: OrderItem, batches: List[Batch]) -> Set[Batch]:
-#     allocated_batches = set(
-#         batch for batch in batches if batch.can_allocate(order_item)
-#     )
-#     if allocated_batches:
-#         return allocated_batches
-#     raise OutOfStock(f"{order_item.sku!r} is Out of Stock.")
+    def _increment_version(self):
+        self.version_number += 1
 
 
 def create_sku(sku_name) -> SKU:

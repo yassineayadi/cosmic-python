@@ -1,55 +1,46 @@
-import json
-import unittest
-
+from conftest import make_test_batch_and_order_item, make_test_product, make_test_sku
 from flask.testing import FlaskClient
-from flask_unittest import ClientTestCase
-from test_domain import make_test_batch_and_order_item, make_test_sku
 
-from app.core.domain import SKU, Batch
-from app.entrypoints.flask_app import create_app
-from app.repositories import UnitofWork, get_current_repo
-from app.serializers import OrderItemSchema, SKUSchema
+from app.interfaces import session_factory
+from app.repositories import UnitOfWork
+from app.serializers import SKUSchema
 
 
-class TestAPI(ClientTestCase):
-    app = create_app()
+def test_index(client: FlaskClient):
+    rv = client.get("/")
+    assert b"Index" in rv.data
 
-    # @unittest.skip
-    def test_index(self, client: FlaskClient):
-        rv = client.get("/")
-        self.assertInResponse(b"Index", rv)
 
-    # @unittest.skip
-    def test_list_skus(self, client: FlaskClient):
-        repo = get_current_repo()
+def test_list_skus(client: FlaskClient):
+    with UnitOfWork(session_factory) as uow:
         test_sku_1 = make_test_sku()
         test_sku_2 = make_test_sku()
-        with UnitofWork(repo) as uow:
-            uow.repo.add_all([test_sku_2, test_sku_1])
+        test_pro_1 = make_test_product(test_sku_1)
+        test_pro_2 = make_test_product(test_sku_2)
+        uow.products.add_all([test_pro_1, test_pro_2])
+        sku_refs = [sku.uuid for sku in [test_sku_2, test_sku_1]]
 
-        response = client.get("/skus")
+    response = client.get("/skus")
 
-        data = json.loads(response.data)
-        retrieved_skus = SKUSchema().load(response.json, many=True)
-        # retrieved_skus = [SKU(**sku) for sku in data]
+    retrieved_skus = SKUSchema().load(response.json, many=True)
+    retrieved_skus_refs = [sku.uuid for sku in retrieved_skus]
+    for sku_ref in sku_refs:
+        assert sku_ref in retrieved_skus_refs
 
-        self.assertTrue(test_sku_2 in retrieved_skus)
-        self.assertTrue(test_sku_1 in retrieved_skus)
 
-    def test_allocation_one_matching_batch_order_item_pair(self, client: FlaskClient):
-        repo = get_current_repo()
+def test_allocation_one_matching_batch_order_item_pair(client: FlaskClient):
+
+    with UnitOfWork(session_factory) as uow:
         sku = make_test_sku()
         batch, order_item = make_test_batch_and_order_item(sku, 20, 2)
-        with UnitofWork(repo) as uow:
-            uow.repo.add(batch)
+        product = make_test_product(sku, batches={batch})
+        uow.products.add(product=product)
+        product_id = sku.uuid
+        data = order_item.to_dict()
 
-        response = client.post("/allocate", json=order_item.to_dict())
-        # batch = repo.merge(batch)
-        with UnitofWork(repo) as uow:
-            batch = uow.repo.get(Batch, batch.uuid)
-        # refreshed_batch = repo.get(Batch, batch.uuid)
-        # data = response.data
-        self.assertTrue(batch.available_quantity == 18)
+    client.post("/allocate", json=data)
 
-        # self.assertTrue(data[0]["uuid"])
-        # self.assertInResponse(b"", rv)
+    with UnitOfWork(session_factory) as uow:
+        product = uow.products.get_by_sku_uuid(product_id)
+        batch = product.batches.pop()
+        assert batch.available_quantity == 18

@@ -1,9 +1,9 @@
 from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import registry, relationship
 
+from app.config import get_current_config
 from app.core import domain
-
-from .datatypes import GUID
+from app.interfaces.datatypes import GUID
 
 mapper_registry = registry()
 
@@ -39,6 +39,7 @@ products = Table(
     "products",
     mapper_registry.metadata,
     Column("_sku_id", GUID, ForeignKey("skus.uuid"), primary_key=True),
+    Column("version_number", Integer),
 )
 
 batches = Table(
@@ -61,23 +62,23 @@ order_items_batches_association = Table(
 
 
 def start_mappers():
-    """Map SQLAlchemy models to Domain Models"""
+    """Maps SQLAlchemy models to Domain models."""
     if not mapper_registry.mappers:
-        mapper_registry.map_imperatively(domain.SKU, skus),
+        mapper_registry.map_imperatively(domain.SKU, skus)
         mapper_registry.map_imperatively(domain.Customer, customers)
         mapper_registry.map_imperatively(
             domain.OrderItem,
             order_items,
             properties={
-                "batches": relationship(
-                    domain.Batch,
-                    secondary=order_items_batches_association,
-                    lazy="subquery",
-                    back_populates="allocated_order_items",
-                    # backref="batches",
-                    cascade="all",
-                    collection_class=set,
-                ),
+                # "batches": relationship(
+                #     domain.Batch,
+                #     secondary=order_items_batches_association,
+                #     lazy="subquery",
+                #     back_populates="allocated_order_items",
+                #     # backref="batches",
+                #     cascade="all",
+                #     collection_class=set,
+                # ),
                 "sku": relationship(
                     domain.SKU, backref="order_items", lazy="subquery", cascade="all"
                 ),
@@ -91,8 +92,8 @@ def start_mappers():
                     domain.OrderItem,
                     secondary=order_items_batches_association,
                     lazy="subquery",
-                    back_populates="batches",
-                    # backref="batches",
+                    # back_populates="batches",
+                    backref="batches",
                     cascade="all",
                     collection_class=set,
                 ),
@@ -118,3 +119,9 @@ def start_mappers():
                 ),
             },
         )
+
+
+def create_db_if_no_exists():
+    config = get_current_config()
+    if not config.DB_PATH.exists():
+        config.DB_PATH.touch()

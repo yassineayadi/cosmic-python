@@ -2,19 +2,20 @@ import json
 import unittest
 from uuid import uuid4
 
+from conftest import (
+    make_test_batch_and_order_item,
+    make_test_customer,
+    make_test_order,
+    make_test_order_item,
+    make_test_sku,
+)
+
 from app.serializers import (
     BatchSchema,
     CustomerSchema,
     OrderItemSchema,
     OrderSchema,
     SKUSchema,
-)
-from tests.test_domain import (
-    make_test_batch_and_order_item,
-    make_test_customer,
-    make_test_order,
-    make_test_order_item,
-    make_test_sku,
 )
 
 
@@ -39,8 +40,8 @@ class TestSerializers(unittest.TestCase):
         s_customer = CustomerSchema().dumps(customer)
         try:
             json.loads(s_customer)
-        except ValueError as e:
-            self.fail(f"{e}, failed with correct schema")
+        except ValueError as err:
+            self.fail(f"{err}, failed with correct schema")
 
     def test_load_customer_with_correct_schema(self):
         uuid = uuid4()
@@ -60,8 +61,8 @@ class TestSerializers(unittest.TestCase):
 
         try:
             json.loads(s_order_item)
-        except ValueError as e:
-            self.fail(f"{e}, failed with correct schema")
+        except ValueError as err:
+            self.fail(f"{err}, failed with correct schema")
 
     def test_serialize_order_with_correct_schema(self):
         order = make_test_order()

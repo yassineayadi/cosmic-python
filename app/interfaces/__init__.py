@@ -1,34 +1,24 @@
-from abc import abstractmethod
-
 import sqlalchemy
+from sqlalchemy import event
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.config import Config, get_current_config
-from app.interfaces.models import mapper_registry, start_mappers
+from app.interfaces import orm
 
 
-class Interface:
-    @abstractmethod
-    def execute(self):
-        ...
-
-
-class SQLiteInterface:
-    def __init__(self, config: Config = get_current_config()):
-        self.db_path = config.DB_PATH
+class SessionFactory:
+    def __init__(self, engine):
         self.sessionmaker = sessionmaker
-        self.engine = engine_factory()
-        self.mapper_registry = mapper_registry
+        self.engine = engine
+        self.mapper_registry = orm.mapper_registry
 
         self._create_database_if_no_exists()
         self._drop_and_create_all_tables()
         self._map_domain_models_to_database_models()
 
-    # def _open_session(self, *args, **kwargs) -> Session:
-
     def _map_domain_models_to_database_models(self) -> None:
-        start_mappers()
+        orm.start_mappers()
 
     def _drop_and_create_all_tables(self) -> None:
         self._bind_metadata()
@@ -39,12 +29,12 @@ class SQLiteInterface:
         self.mapper_registry.metadata.bind = self.engine
 
     def _create_database_if_no_exists(self):
-        if not self.db_path.exists():
-            self.db_path.touch()
+        orm.create_db_if_no_exists()
 
-    def create_interface(self, *args, **kwargs) -> Session:
-        SessionClass = scoped_session(self.sessionmaker(self.engine))
-        return SessionClass(**kwargs)
+
+    def __call__(self, **kwargs) -> Session:
+        session_class = scoped_session(self.sessionmaker(self.engine))  # pylint: ignore
+        return session_class(**kwargs)
 
 
 def engine_factory():
@@ -58,3 +48,29 @@ def engine_factory():
         config.SQLA_CONNECTION_STRING, poolclass=poolclass
     )
     return engine
+
+
+session_factory = SessionFactory(engine_factory())
+
+
+@event.listens_for(session_factory.engine, "connect")
+def do_connect(dbapi_connection, connection_record):
+    # disable pysqlite's emitting of the BEGIN statement entirely.
+    # also stops it from emitting COMMIT before any DDL.
+    dbapi_connection.isolation_level = None
+
+
+# @event.listens_for(session_factory.engine, "connect")
+# def set_sqlite_pragma(dbapi_connection, connection_record):
+#     dbapi_connection.isolation_level = None
+#
+#     # cursor = dbapi_connection.cursor()
+#     # cursor.execute("PRAGMA journal_mode=WAL")
+#     # cursor.close()
+
+
+@event.listens_for(session_factory.engine, "begin")
+def do_begin(conn: sqlalchemy.engine.Connection):
+    # emit our own BEGIN
+    if not conn.in_transaction():
+        conn.exec_driver_sql("BEGIN")

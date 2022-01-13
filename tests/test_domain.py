@@ -1,44 +1,26 @@
-import random
 import unittest
 from datetime import date, timedelta
-from string import ascii_uppercase
-from typing import Tuple
 from uuid import uuid4
 
-from app.core.domain import SKU, Batch, Customer, Order, OrderItem, OutOfStock, allocate
+from conftest import (
+    make_test_batch,
+    make_test_batch_and_order_item,
+    make_test_customer,
+    make_test_order_item,
+    make_test_product,
+    make_test_sku,
+)
 
-
-def make_test_batch_and_order_item(
-    sku, batch_qty, line_qty, eta=None
-) -> Tuple[Batch, OrderItem]:
-    sku = sku if sku else make_test_sku()
-    return make_test_batch(sku, batch_qty, eta), make_test_order_item(sku, line_qty)
-
-
-def make_test_batch(sku=None, batch_qty=20, eta=None) -> Batch:
-    eta = eta if eta else date.today()
-    sku = sku if sku else make_test_sku()
-    return Batch(uuid4(), sku, batch_qty, eta=eta)
-
-
-def make_test_order() -> Order:
-    test_order_item = make_test_order_item()
-    test_customer = make_test_customer()
-    return Order(uuid4(), [test_order_item], test_customer)
-
-
-def make_test_sku() -> SKU:
-    suffix = "".join([random.choice(ascii_uppercase) for _ in range(5)])
-    return SKU(uuid4(), f"SKU-{suffix}")
-
-
-def make_test_customer():
-    return Customer(uuid=uuid4(), first_name="Yassine", last_name="Ayadi")
-
-
-def make_test_order_item(sku=None, quantity=10):
-    sku = sku if sku else make_test_sku()
-    return OrderItem(uuid4(), sku, quantity=quantity)
+from app.core.domain import (
+    SKU,
+    Batch,
+    Customer,
+    NonMatchingSKU,
+    Order,
+    OrderItem,
+    Product,
+)
+from app.core.events import OutOfStockEvent
 
 
 class TestSKU(unittest.TestCase):
@@ -126,17 +108,39 @@ class TestBatch(unittest.TestCase):
         self.assertTrue(later_batch > earlier_batch)
 
     def test_allocate_function_with_matching_pair(self):
-        batch_1, order_item_1 = make_test_batch_and_order_item(make_test_sku(), 20, 10)
-        successful_allocation = allocate(order_item_1, [batch_1])
-        self.assertTrue(len(successful_allocation) >= 1)
+        sku_1 = make_test_sku()
+        batch_1, order_item_1 = make_test_batch_and_order_item(sku_1, 20, 10)
+        product_1 = Product(sku_1)
+        product_1.register_batch(batch_1)
+        # successful_allocation = allocate(order_item_1, [batch_1])
+        successful_allocation = product_1.allocate(order_item_1)
+        self.assertTrue(successful_allocation is not None)
 
-    def test_raise_OutOfStock_on_non_matching_order_item_and_batches(self):
+    def test_creates_OutOfStockEvent_on_non_matching_order_item_and_batches(self):
+        sku_1 = make_test_sku()
+        batch_1 = make_test_batch(sku_1)
+        product_1 = Product(sku_1)
+        product_1.register_batch(batch_1)
         non_matching_order_item_1 = make_test_order_item(make_test_sku())
-        batch_1 = make_test_batch(make_test_sku())
 
-        self.assertRaises(
-            OutOfStock,
-            allocate,
-            batches=[batch_1],
-            order_item=non_matching_order_item_1,
-        )
+        allocation = product_1.allocate(non_matching_order_item_1)
+        assert allocation is None
+        assert isinstance(product_1.events.pop(), OutOfStockEvent)
+
+    class TestProduct(unittest.TestCase):
+        def test_create_product(self):
+            sku_1 = make_test_sku()
+            product_1 = Product(sku_1)
+            self.assertIsInstance(product_1, Product)
+
+        def test_create_product_with_empty_batches(self):
+            product_1 = make_test_product()
+            self.assertTrue(bool(product_1.batches) is False)
+
+        def test_raise_NonMatchingSKU_batch_with_incorrect_with_non_matching_sku(self):
+            sku_1 = make_test_sku()
+            product_1 = make_test_product(sku_1)
+            non_matching_batch_1 = make_test_batch()
+            self.assertRaises(
+                NonMatchingSKU, product_1.register_batch, batch=non_matching_batch_1
+            )
