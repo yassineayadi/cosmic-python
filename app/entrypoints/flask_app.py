@@ -1,12 +1,19 @@
-import json
+from datetime import datetime
 
-from flask import Blueprint, Flask, Response, request
+import services
+from core import commands
+from flask import Blueprint, Flask, Response, redirect, request, url_for
 
 from app.core import domain
-from app.core.domain import SKU, Batch, create_order_item
+from app.core.domain import create_order_item
 from app.interfaces import session_factory
 from app.repositories import UnitOfWork
-from app.serializers.domain import CreateSKUSchema, OrderItemSchema, SKUSchema
+from app.serializers.domain import (
+    BatchSchema,
+    CreateSKUSchema,
+    OrderItemSchema,
+    SKUSchema,
+)
 
 
 def create_app() -> Flask:
@@ -30,18 +37,39 @@ def index():
 def allocate():
 
     order_data = request.json
-    # repo = get_current_repo()
     with UnitOfWork(session_factory) as uow:
         product = uow.products.get(order_data["_sku_id"])
-        order_item = create_order_item(product.sku,order_data["quantity"])
-        # order_item = OrderItemSchema().load(order_data)
-        # order_item = uow.products.session.merge(order_item)
+        order_item = create_order_item(product.sku, order_data["quantity"])
         product.allocate(order_item)
 
         return Response(
             response=OrderItemSchema().dumps(order_item),
             mimetype="application/json",
         )
+
+
+@bp.route("/batch/<uuid:batch_id>", methods=["GET"])
+def get_batch(batch_id):
+    with UnitOfWork(session_factory) as uow:
+        batches = uow.products.get_all_batches()
+        [batch] = [b for b in batches if b.uuid == batch_id]
+        return Response(
+            response=BatchSchema().dumps(batch),
+            mimetype="application/json",
+        )
+
+
+@bp.route("/batch/create", methods=["POST"])
+def create_batch():
+    data = request.json
+    cmd = commands.CreateBatch(
+        sku_id=data["sku_id"],
+        quantity=data["quantity"],
+        eta=datetime.fromtimestamp(data["eta"]),
+    )
+    batch_id = services.create_batch(cmd, UnitOfWork(session_factory))
+    response = redirect(url_for(".get_batch", batch_id=batch_id))
+    return response
 
 
 @bp.route("/order/create", methods=["POST"])

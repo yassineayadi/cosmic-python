@@ -1,12 +1,48 @@
 from abc import ABC
-from dataclasses import dataclass
-from uuid import UUID
-
-
-class Event(ABC):
-    uuid: UUID
+from dataclasses import asdict, dataclass, field
+from typing import Dict
+from uuid import UUID, uuid4
 
 
 @dataclass
-class OutOfStockEvent(Event):
+class Event(ABC):
+    uuid: UUID = field(init=False, default_factory=uuid4)
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+
+@dataclass
+class OutOfStock(Event):
     sku_id: UUID
+
+
+@dataclass
+class ProductCreated(Event):
+    sku_id: UUID
+
+
+@dataclass
+class OrderItemCreated(Event):
+    sku_id: UUID
+    quantity: int
+
+
+@dataclass
+class OrderItemAllocated(Event):
+    sku_id: UUID
+    order_item_id: UUID
+
+
+@dataclass
+class BatchCreated(Event):
+    sku_id: UUID
+    batch_id: UUID
+    quantity: int
+
+
+@dataclass
+class BatchQuantityChanged(Event):
+    batch_id: UUID
+    quantity: int

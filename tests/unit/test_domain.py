@@ -20,7 +20,7 @@ from app.core.domain import (
     OrderItem,
     Product,
 )
-from app.core.events import OutOfStockEvent
+from app.core.events import OutOfStock
 
 
 class TestSKU(unittest.TestCase):
@@ -125,7 +125,7 @@ class TestBatch(unittest.TestCase):
 
         allocation = product_1.allocate(non_matching_order_item_1)
         assert allocation is None
-        assert isinstance(product_1.events.pop(), OutOfStockEvent)
+        assert isinstance(product_1.events.pop(), OutOfStock)
 
     class TestProduct(unittest.TestCase):
         def test_create_product(self):

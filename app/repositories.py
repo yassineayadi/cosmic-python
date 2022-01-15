@@ -1,11 +1,9 @@
 import copy
 import os
-import sys
-import traceback
 from abc import ABC, abstractmethod
 from functools import reduce
 from sqlite3 import OperationalError
-from typing import Dict, List, Set, Type
+from typing import Dict, List, Set
 
 from sqlalchemy.orm import Session
 
@@ -14,10 +12,45 @@ from app.interfaces import SessionFactory
 
 
 class AbstractRepo(ABC):
-    @abstractmethod
+    def __init__(self):
+        self.seen = set()
+
     def get(self, reference) -> Product:
         """Retrieves Product by reference."""
-        ...
+        product = self._get(reference)
+        self.seen.add(product)
+        return product
+
+    def add(self, product: Product) -> None:
+        """Adds individual Product to persistent storage."""
+        self._add(product)
+        self.seen.add(product)
+
+    def delete(self, product: Product) -> None:
+        """Deletes Product from persistent storage layer."""
+        self._delete(product)
+        self.seen.remove(product)
+
+    def add_all(self, products: List[Product]) -> None:
+        """Adds list of Product  to persistent storage."""
+        self.seen.update(products)
+        self._add_all(products)
+
+    @abstractmethod
+    def _get(self, reference):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _add(self, product: Product):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _delete(self, product: Product) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _add_all(self, products: List[Product]):
+        raise NotImplementedError
 
     @abstractmethod
     def get_all_batches(self) -> Set[Batch]:
@@ -25,52 +58,43 @@ class AbstractRepo(ABC):
         ...
 
     @abstractmethod
-    def add(self, product: Product) -> None:
-        """Adds individual Product to persistent storage."""
-        ...
-
-    @abstractmethod
-    def add_all(self, products: List[Product]) -> None:
-        """Adds list of Product  to persistent storage."""
-        ...
-
-    @abstractmethod
     def list(self) -> List[Product]:
         """Lists all Product."""
         ...
 
-    @abstractmethod
-    def delete(self, product: Product) -> None:
-        """Deletes Product from persistent storage layer."""
-
 
 class ProductsRepo(AbstractRepo):
     def __init__(self, session: Session):
+        super().__init__()
         self.session = session
 
-    def get(self, reference) -> Product:
+    def _get(self, reference) -> Product:
         return self.session.get(Product, reference)
 
-    def add(self, product: Product) -> None:
+    def _add(self, product: Product) -> None:
         self.session.add(product)
 
-    def add_all(self, products: List[Product]) -> None:
+    def _add_all(self, products: List[Product]) -> None:
         self.session.add_all(products)
 
-    def list(self) -> List[Product]:
-        return self.session.query(Product).all()
-
-    def delete(self, product: Product) -> None:
+    def _delete(self, product: Product) -> None:
         self.session.delete(product)
 
+    def list(self) -> List[Product]:
+        products = self.session.query(Product).all()
+        self.seen.update(products)
+        return products
+
     def get_by_sku_uuid(self, uuid):
-        return self.session.get(Product, uuid)
+        product = self.session.get(Product, uuid)
+        self.seen.add(product)
+        return product
 
     def get_all_skus(self) -> List[SKU]:
         return [p.sku for p in self.list()]
 
     def get_all_order_items(self) -> Set[OrderItem]:
-        order_item_sets = {order_item for order_item in self.list()}
+        order_item_sets = [p.order_items for p in self.list()]
         order_items = reduce(lambda a, b: {*a, *b}, order_item_sets)
         return order_items
 
@@ -81,25 +105,34 @@ class ProductsRepo(AbstractRepo):
 
 
 class MockRepo(AbstractRepo, Dict):
-    def add(self, product):
-        self[product.sku_id] = product
+    def _delete(self, product: Product) -> None:
+        try:
+            del self[product]
+        except KeyError:
+            pass
 
-    def get(self, reference):
-        return self.__getitem__(reference)
+    def get_all_batches(self) -> Set[Batch]:
+        pass
 
     def list(self) -> List[Product]:
         return list(self.values())
 
-    def add_all(self, products: List[Product]) -> None:
+    def _add(self, product) -> None:
+        self[product.sku_id] = product
+
+    def _get(self, reference) -> Product:
+        return self.__getitem__(reference)
+
+    def _list(self) -> List[Product]:
+        return list(self.values())
+
+    def _add_all(self, products: List[Product]) -> None:
         for prod in products:
             self.update({prod.sku_id: prod})
 
 
 class AbstractUnitOfWork(ABC):
-    @abstractmethod
-    def __init__(self, factory: SessionFactory):
-        """Initializes UnitOfWork with repository and session factory."""
-        self.session_factory = factory
+    products: AbstractRepo
 
     @abstractmethod
     def __enter__(self):
@@ -132,27 +165,37 @@ class AbstractUnitOfWork(ABC):
     def _rollback(self):
         raise NotImplementedError
 
+    def collect_new_messages(self):
+        for product in self.products.seen:
+            while product.events:
+                yield product.events.pop(0)
+
 
 class MockUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, repo: MockRepo):
-        self.repo = repo
-        self.previous_repo_version = copy.deepcopy(repo)
+    products: MockRepo
+    _previous_repo_version: MockRepo
+
+    def __init__(self, products):
+        self.products = products
 
     def __enter__(self):
+        self._previous_repo_version = copy.copy(self.products)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            self.repo = self.previous_repo_version
+            self._rollback()
+        else:
+            self.commit()
 
     def _close(self):
         ...
 
     def _commit(self):
-        self.previous_repo_version = self.repo
+        self._previous_repo_version = self.products
 
     def _rollback(self):
-        self.repo = self.previous_repo_version
+        self.products = self._previous_repo_version
 
 
 class UnitOfWork(AbstractUnitOfWork):

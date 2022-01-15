@@ -4,8 +4,6 @@ import time
 import traceback
 import unittest
 from datetime import date, timedelta
-
-# from sqlite3 import OperationalError
 from typing import List
 from uuid import UUID
 
@@ -50,7 +48,7 @@ def try_to_register_batch(product_id: UUID, exceptions: List[Exception]):
             product.register_batch(batch)
             time.sleep(0.2)
             print(product.version_number)
-            uow.products.commit()
+            uow.session.commit()
     except Exception as e:  # pylint:disable=broad-except
         exceptions.append(e)
         raise Exception("Exception") from e
@@ -60,10 +58,9 @@ def test_save_order_item():
     with UnitOfWork(session_factory) as uow:
         sku_1 = make_test_sku()
         product_1 = make_test_product(sku_1)
+        order_item_1 = make_test_order_item(sku_1)
+        product_1.register_order_item(order_item_1)
         uow.products.add(product_1)
-        batch_1, order_item_1 = make_test_batch_and_order_item(sku_1, 20, 10)
-        product_1.register_batch(batch_1)
-        product_1.allocate(order_item_1)
 
         assert uow.products.list().pop().order_items.pop() == order_item_1
 
@@ -182,8 +179,8 @@ def test_get_all_batches():
         product2 = make_test_product(sku2, {batch4, batch5, batch6})
         uow.products.add(product2)
         batchrefs_a = {batch.uuid for batch in batches_a}
-        batchrefsB = {batch.uuid for batch in batches_b}
-        batchrefs = batchrefs_a.union(batchrefsB)
+        batchrefs_b = {batch.uuid for batch in batches_b}
+        batchrefs = batchrefs_a.union(batchrefs_b)
 
     with UnitOfWork(session_factory) as uow:
         retrieved_batchrefs = {b.uuid for b in uow.products.get_all_batches()}
@@ -195,10 +192,8 @@ def test_delete_order_item():
         sku = make_test_sku()
         product = make_test_product(sku)
         order_item = make_test_order_item(sku)
-        batch = make_test_batch(sku, 10)
         uow.products.add(product)
-        product.register_batch(batch)
-        product.allocate(order_item)
+        product.order_items.add(order_item)
         sku_id = product.sku_id
         order_item_id = order_item.uuid
 

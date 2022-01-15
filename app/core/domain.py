@@ -4,7 +4,12 @@ from datetime import date
 from typing import Dict, List, Optional, Set
 from uuid import UUID, uuid4
 
-from app.core.events import Event, OutOfStockEvent
+from app.core.events import (
+    OrderItemAllocated,
+    OrderItemCreated,
+    OutOfStock,
+    ProductCreated,
+)
 
 
 class NonMatchingSKU(Exception):
@@ -72,7 +77,6 @@ class Batch(DomainObj):
         self.available_quantity = self.quantity
 
     def allocate_available_quantity(self, order_item: OrderItem) -> None:
-        """Adjust Batch available quantity with ordered quantities."""
         if self.can_allocate(order_item):
             self.available_quantity = self.available_quantity - order_item.quantity
             self.allocated_order_items.add(order_item)
@@ -102,7 +106,8 @@ class Batch(DomainObj):
 
     @property
     def allocated_quantity(self) -> int:
-        return self.quantity - self.available_quantity
+        # return self.quantity - sum(o.quantity for o in self.allocated_order_items)
+        return sum(o.quantity for o in self.allocated_order_items)
 
     def __lt__(self, other):
         if self.eta is None:
@@ -112,31 +117,51 @@ class Batch(DomainObj):
         return self.eta < other.eta
 
 
-@dataclass
 class Product:
+    def __init__(self, sku, order_items=None, batches=None):
+        batches = batches if batches else set()
+        order_items = order_items if order_items else set()
+        self.sku = sku
+        self.sku_id = sku.uuid
+        self.batches = batches
+        self.order_items = order_items
+        self.events = []
+        self.version_number = 0
 
-    sku: SKU
-    sku_id: Optional[UUID] = None
-    events: List[Event] = field(default_factory=list)
-    batches: Set[Batch] = field(default_factory=set)
-    # order_items: Set[OrderItem] = field(default_factory=set)
-    version_number: int = field(default=0)
+        self.events.append(ProductCreated(sku.uuid))
 
-    def __post_init__(self):
-        self.sku_id = self.sku.uuid
+    @property
+    def events(self):
+        if not hasattr(self, "_events"):
+            self.events = []
+        return self._events
+
+    @events.setter
+    def events(self, value):
+        self._events = value
+
+    def __eq__(self, other):
+        if self.sku == other.sku:
+            return True
+        return False
+
+    def __hash__(self):
+        return hash(self.sku.uuid)
 
     def allocate(self, order_item: OrderItem) -> Batch:
         try:
-            allocatable_batch = next(
+            batch = next(
                 batch
                 for batch in sorted(self.batches)
                 if batch.can_allocate(order_item)
             )
-            allocatable_batch.allocate_available_quantity(order_item)
+            batch.allocate_available_quantity(order_item)
+            event = OrderItemAllocated(self.sku.uuid, order_item.uuid)
+            self.events.append(event)
             self._increment_version()
-            return allocatable_batch
+            return batch
         except StopIteration:
-            event = OutOfStockEvent(self.sku.uuid)
+            event = OutOfStock(self.sku.uuid)
             self.events.append(event)
 
     def register_batch(self, batch: Batch) -> None:
@@ -145,33 +170,24 @@ class Product:
             self._increment_version()
         else:
             raise NonMatchingSKU(f"The batch {batch} does not match the Product SKU.")
-    #
-    # def register_order_item(self, order_item: OrderItem) -> None:
-    #     if order_item.sku == self.sku:
-    #         self.order_items.add(order_item)
-    #         self._increment_version()
-    #     else:
-    #         raise NonMatchingSKU(f"The order item {order_item} does not match the Product SKU.")
 
-    @property
-    def order_items(self) -> List[OrderItem]:
-        return [
-            order_item
-            for batch in self.batches
-            for order_item in batch.allocated_order_items
-        ]
+    def register_order_item(self, order_item: OrderItem) -> None:
+        if self.sku == order_item.sku:
+            self.order_items.add(order_item)
+            event = OrderItemCreated(self.sku.uuid, order_item.quantity)
+            self.events.append(event)
+            self._increment_version()
+        else:
+            raise NonMatchingSKU(
+                f"The Order Item {order_item} does not match the Product SKU."
+            )
 
-    def _increment_version(self):
+    def _increment_version(self) -> None:
         self.version_number += 1
 
 
 def create_sku(sku_name) -> SKU:
     return SKU(uuid4(), sku_name)
-
-
-def create_order_item(sku: SKU, quantity: int, uuid=None) -> OrderItem:
-    uuid = uuid if uuid else uuid4()
-    return OrderItem(uuid, sku, quantity)
 
 
 def create_customer_id(first_name: str, last_name: str) -> Customer:
@@ -180,3 +196,17 @@ def create_customer_id(first_name: str, last_name: str) -> Customer:
 
 def create_order(order_item, customer) -> Order:
     return Order(uuid4(), order_item, customer)
+
+
+def create_product(sku: SKU) -> Product:
+    return Product(sku)
+
+
+def create_order_item(sku: SKU, quantity: int, uuid=None) -> OrderItem:
+    uuid = uuid if uuid else uuid4()
+    return OrderItem(uuid, sku, quantity)
+
+
+def create_batch(sku: SKU, quantity: int, eta: date = None, uuid=None):
+    uuid = uuid if uuid else uuid4()
+    return Batch(uuid=uuid, sku=sku, quantity=quantity, eta=eta)

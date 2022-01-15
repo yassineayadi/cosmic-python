@@ -24,7 +24,7 @@ order_items = Table(
     "order_items",
     mapper_registry.metadata,
     Column("uuid", GUID, primary_key=True),
-    Column("_sku_id", GUID, ForeignKey("skus.uuid")),
+    Column("_sku_id", GUID, ForeignKey("skus.uuid"), ForeignKey("products._sku_id")),
     Column("quantity", Integer),
     Column("order_id", String(36)),
 )
@@ -111,6 +111,13 @@ def start_mappers():
                     domain.Batch,
                     backref="product",
                     lazy="subquery",
+                    cascade="all",
+                    collection_class=set,
+                ),
+                "order_items": relationship(
+                    domain.OrderItem,
+                    lazy="subquery",
+                    backref="order_items",
                     cascade="all",
                     collection_class=set,
                 ),

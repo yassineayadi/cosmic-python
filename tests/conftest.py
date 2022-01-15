@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core import domain
 from app.core.domain import SKU, Batch, Customer, Order, OrderItem, Product
 from app.entrypoints.flask_app import create_app
 
@@ -53,7 +54,9 @@ def make_test_order_item(sku=None, quantity=10):
 def make_test_product(sku=None, batches: Set[Batch] = None):
     sku = sku if sku else make_test_sku()
     batches = batches if batches else set()
-    return Product(sku, batches=batches)
+    product = domain.create_product(sku)
+    [product.register_batch(b) for b in batches]
+    return product
 
 
 @pytest.fixture

@@ -31,7 +31,6 @@ class SessionFactory:
     def _create_database_if_no_exists(self):
         orm.create_db_if_no_exists()
 
-
     def __call__(self, **kwargs) -> Session:
         session_class = scoped_session(self.sessionmaker(self.engine))  # pylint: ignore
         return session_class(**kwargs)
