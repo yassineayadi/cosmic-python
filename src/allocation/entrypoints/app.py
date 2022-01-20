@@ -1,19 +1,18 @@
 from datetime import datetime
+from uuid import UUID
 
-import services
-from core import commands
 from flask import Blueprint, Flask, Response, redirect, request, url_for
 
-from app.core import domain
-from app.core.domain import create_order_item
-from app.interfaces import session_factory
-from app.repositories import UnitOfWork
-from app.serializers.domain import (
+from allocation import messagebus, services
+from allocation.core import commands, domain
+from allocation.interfaces.database.db import session_factory
+from allocation.interfaces.serializers import (
     BatchSchema,
     CreateSKUSchema,
     OrderItemSchema,
     SKUSchema,
 )
+from allocation.unit_of_work import UnitOfWork
 
 
 def create_app() -> Flask:
@@ -37,14 +36,27 @@ def index():
 def allocate():
 
     order_data = request.json
-    with UnitOfWork(session_factory) as uow:
-        product = uow.products.get(order_data["_sku_id"])
-        order_item = create_order_item(product.sku, order_data["quantity"])
-        product.allocate(order_item)
+    order_item_id = UUID(order_data["order_item_id"])
+    sku_id = UUID(order_data["_sku_id"])
+    cmd = commands.Allocate(sku_id, order_item_id)
+    messagebus.handle([cmd], UnitOfWork())
 
+    return redirect(url_for(".get_order_item", order_item_id=order_item_id))
+
+
+@bp.route("/order_item/allocations/<uuid:order_ite_id>", methods=["GET"])
+def get_allocations():
+    ...
+
+
+@bp.route("/order_item/<uuid:order_item_id>", methods=["GET"])
+def get_order_item(order_item_id):
+
+    with UnitOfWork() as uow:
+        order_items = uow.products.get_all_order_items()
+        order_item = next(oi for oi in order_items if oi.uuid == order_item_id)
         return Response(
-            response=OrderItemSchema().dumps(order_item),
-            mimetype="application/json",
+            response=OrderItemSchema().dumps(order_item), mimetype="application/json"
         )
 
 
@@ -52,7 +64,7 @@ def allocate():
 def get_batch(batch_id):
     with UnitOfWork(session_factory) as uow:
         batches = uow.products.get_all_batches()
-        [batch] = [b for b in batches if b.uuid == batch_id]
+        batch = next(b for b in batches if b.uuid == batch_id)
         return Response(
             response=BatchSchema().dumps(batch),
             mimetype="application/json",
@@ -82,7 +94,7 @@ def create_sku():
     create_sku_request = CreateSKUSchema().load(request.json)
     sku_list = create_sku_request["sku_names"]
     skus = [domain.create_sku(sku_name) for sku_name in sku_list]
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         uow.products.add_all(skus)
 
     return Response(
@@ -93,7 +105,7 @@ def create_sku():
 @bp.route("/skus", methods=["GET"])
 def list_skus():
 
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         products = uow.products.list()
         skus = [product.sku for product in products]
 

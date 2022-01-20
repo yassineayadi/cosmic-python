@@ -1,7 +1,7 @@
 from flask_marshmallow import Schema
 from marshmallow import fields, post_load
 
-from app.core.domain import SKU, OrderItem
+from allocation.core.domain import SKU, OrderItem
 
 
 class SKUSchema(Schema):
