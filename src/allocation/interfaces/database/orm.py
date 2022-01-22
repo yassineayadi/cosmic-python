@@ -121,11 +121,7 @@ def start_mappers():
         )
 
 
-def migrate_table_definitions(engine: Engine):
-    """Migrates table DDL in a rudimentary fashion by dropping"""
-    mapper_registry.metadata.bind = engine
-    mapper_registry.metadata.drop_all()
-    mapper_registry.metadata.create_all()
+start_mappers()
 
 
 def create_engine():
@@ -136,9 +132,3 @@ def create_engine():
         config.SQLA_CONNECTION_STRING, poolclass=poolclass
     )
     return engine
-
-
-def init_db(engine: Engine):
-    mapper_registry.metadata.bind = engine
-    mapper_registry.metadata.create_all()
-    start_mappers()
