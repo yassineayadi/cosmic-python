@@ -4,7 +4,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from allocation.interfaces.database import orm
-from allocation.interfaces.database.orm import create_engine, init_db
 
 
 class SessionFactory:
@@ -19,9 +18,9 @@ class SessionFactory:
         return session_class(**kwargs)
 
 
-engine = create_engine()
+engine = orm.create_engine()
 session_factory = SessionFactory(engine)
-init_db(engine)
+orm.init_db(engine)
 
 
 @event.listens_for(engine, "connect")
