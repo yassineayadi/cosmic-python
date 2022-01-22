@@ -1,19 +1,19 @@
 import datetime
 
-import serializers
-import services
 from conftest import (
     make_test_batch,
     make_test_batch_and_order_item,
     make_test_product,
     make_test_sku,
 )
-from core.commands import CreateProductCommand
 from flask.testing import FlaskClient
 
-from app.interfaces import session_factory
-from app.repositories import UnitOfWork
-from app.serializers import SKUSchema
+from allocation import services
+from allocation.core.commands import CreateProductCommand
+from allocation.interfaces import serializers
+from allocation.interfaces.database.db import session_factory
+from allocation.interfaces.serializers import SKUSchema
+from allocation.unit_of_work import UnitOfWork
 
 
 def test_index(client: FlaskClient):
@@ -100,17 +100,18 @@ def test_get_batch(client: FlaskClient):
 
 def test_allocation_one_matching_batch_order_item_pair(client: FlaskClient):
 
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         sku = make_test_sku()
         batch, order_item = make_test_batch_and_order_item(sku, 20, 2)
         product = make_test_product(sku, batches={batch})
-        uow.products.add(product=product)
-        product_id = sku.uuid
-        data = order_item.to_dict()
+        uow.products.add(product)
+        sku_id = sku.uuid
+        order_item_id = order_item.uuid
+        data = {"order_item_id": order_item_id, "_sku_id": sku_id}
 
     client.post("/allocate", json=data)
 
-    with UnitOfWork(session_factory) as uow:
-        product = uow.products.get_by_sku_uuid(product_id)
+    with UnitOfWork() as uow:
+        product = uow.products.get(sku_id)
         batch = product.batches.pop()
         assert batch.available_quantity == 18

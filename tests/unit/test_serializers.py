@@ -10,7 +10,7 @@ from conftest import (
     make_test_sku,
 )
 
-from app.serializers import (
+from allocation.interfaces.serializers import (
     BatchSchema,
     CustomerSchema,
     OrderItemSchema,

@@ -9,9 +9,10 @@ from conftest import (
     make_test_order_item,
     make_test_product,
     make_test_sku,
+    make_test_sku_product_and_batch,
 )
 
-from app.core.domain import (
+from allocation.core.domain import (
     SKU,
     Batch,
     Customer,
@@ -20,7 +21,7 @@ from app.core.domain import (
     OrderItem,
     Product,
 )
-from app.core.events import OutOfStock
+from allocation.core.events import OutOfStock
 
 
 class TestSKU(unittest.TestCase):
@@ -112,20 +113,17 @@ class TestBatch(unittest.TestCase):
         batch_1, order_item_1 = make_test_batch_and_order_item(sku_1, 20, 10)
         product_1 = Product(sku_1)
         product_1.register_batch(batch_1)
-        # successful_allocation = allocate(order_item_1, [batch_1])
         successful_allocation = product_1.allocate(order_item_1)
         self.assertTrue(successful_allocation is not None)
 
-    def test_creates_OutOfStockEvent_on_non_matching_order_item_and_batches(self):
-        sku_1 = make_test_sku()
-        batch_1 = make_test_batch(sku_1)
-        product_1 = Product(sku_1)
-        product_1.register_batch(batch_1)
-        non_matching_order_item_1 = make_test_order_item(make_test_sku())
+    def test_creates_OutOfStockEvent_when_batch_has_insufficient_stock_available(self):
+        sku, product, batch_with_insufficient_stock = make_test_sku_product_and_batch()
+        product.register_batch(batch_with_insufficient_stock)
+        order_item = make_test_order_item(sku, 30)
 
-        allocation = product_1.allocate(non_matching_order_item_1)
+        allocation = product.allocate(order_item)
         assert allocation is None
-        assert isinstance(product_1.events.pop(), OutOfStock)
+        assert isinstance(product.events.pop(), OutOfStock)
 
     class TestProduct(unittest.TestCase):
         def test_create_product(self):
@@ -137,7 +135,9 @@ class TestBatch(unittest.TestCase):
             product_1 = make_test_product()
             self.assertTrue(bool(product_1.batches) is False)
 
-        def test_raise_NonMatchingSKU_batch_with_incorrect_with_non_matching_sku(self):
+        def test_raise_NonMatchingSKU_when_registering_batch_with_non_matching_sku(
+            self,
+        ):
             sku_1 = make_test_sku()
             product_1 = make_test_product(sku_1)
             non_matching_batch_1 = make_test_batch()

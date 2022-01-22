@@ -18,9 +18,9 @@ from conftest import (
     make_test_sku_product_and_batch,
 )
 
-from app.core.domain import AllocationError
-from app.interfaces import session_factory
-from app.repositories import UnitOfWork
+from allocation.core.domain import AllocationError
+from allocation.interfaces.database.db import session_factory
+from allocation.unit_of_work import UnitOfWork
 
 
 class TestUnitOfWork(unittest.TestCase):

@@ -1,6 +1,6 @@
 from conftest import make_test_product
 
-from app.core import domain, events
+from allocation.core import events
 
 
 def test_product_created_event():

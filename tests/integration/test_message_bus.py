@@ -1,10 +1,10 @@
-import messagebus
 from conftest import make_test_sku
 
-from app.core import commands, events
-from app.interfaces import session_factory
-from app.messagebus import COMMAND_HANDLERS, EVENT_HANDLERS, Message
-from app.repositories import MockRepo, MockUnitOfWork, UnitOfWork
+from allocation import messagebus
+from allocation.core import Message, commands, events
+from allocation.messagebus import EVENT_HANDLERS
+from allocation.repositories import MockRepo
+from allocation.unit_of_work import MockUnitOfWork
 
 
 def mock_send_email_notification(msg: Message):
@@ -39,7 +39,7 @@ def test_handle_workflow_from_command_to_event():
     messagebus.handle([cmd], uow)
     with uow:
         product = uow.products.list().pop()
-        assert product.sku == sku
+        assert product.sku.name == sku.name
 
 
 def test_generate_event_after_command_handled():

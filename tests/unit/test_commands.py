@@ -1,15 +1,14 @@
-import services
 from conftest import (
     make_test_order_item,
     make_test_sku,
     make_test_sku_product_and_batch,
 )
-from core import commands
-from interfaces import session_factory
-from repositories import UnitOfWork
 
-from app.core import domain, events
-from app.core.commands import AllocateCommand, CreateOrderItem, CreateProductCommand
+from allocation import services
+from allocation.core import commands, domain, events
+from allocation.core.commands import Allocate, CreateOrderItem, CreateProductCommand
+from allocation.interfaces.database.db import session_factory
+from allocation.unit_of_work import UnitOfWork
 
 
 def test_create_order_item_command():
@@ -24,13 +23,13 @@ def test_create_order_item_handler():
     uow = UnitOfWork(session_factory)
     services.create_product(CreateProductCommand(sku), uow)
     services.create_order_item(cmd, uow)
-    [event] = [event for event in uow.collect_new_messages()]
+    event = next(event for event in uow.collect_new_messages())
     assert isinstance(event, events.OrderItemCreated)
 
 
 def test_create_product_command():
     sku = domain.create_sku("SKU")
-    cmd = CreateProductCommand(sku=sku)
+    cmd = CreateProductCommand(sku)
     uow = UnitOfWork(session_factory)
     services.create_product(cmd, uow)
     [event] = list(uow.collect_new_messages())
@@ -46,9 +45,7 @@ def test_allocate_handler():
     order_item_id = services.create_order_item(
         CreateOrderItem(sku_id=sku_id, quantity=10), uow
     )
-    services.allocate(
-        AllocateCommand(sku_id=sku_id, order_item_id=order_item_id, quantity=10), uow
-    )
+    services.allocate(Allocate(sku_id=sku_id, order_item_id=order_item_id), uow)
     [event] = list(uow.collect_new_messages())
     assert isinstance(event, events.OrderItemAllocated)
 
@@ -58,7 +55,6 @@ def test_change_batch_quantity_command():
         sku, product, batch = make_test_sku_product_and_batch()
         order_items = make_test_order_item(sku), make_test_order_item(sku)
         uow.products.add(product)
-        [product.register_order_item(o) for o in order_items]
         [product.allocate(o) for o in order_items]
 
         sku_id = sku.uuid
@@ -66,7 +62,7 @@ def test_change_batch_quantity_command():
         assert len(batch.allocated_order_items) == 2
 
     cmd = commands.ChangeBatchQuantity(sku_id, batch_id, 15)
-    batch_id = services.change_batch_quantity(cmd, UnitOfWork(session_factory))
+    services.change_batch_quantity(cmd, UnitOfWork(session_factory))
 
     with UnitOfWork(session_factory) as uow:
         product = uow.products.get(sku_id)

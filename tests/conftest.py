@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.core import domain
-from app.core.domain import SKU, Batch, Customer, Order, OrderItem, Product
-from app.entrypoints.flask_app import create_app
+from allocation.core import domain
+from allocation.core.domain import SKU, Batch, Customer, Order, OrderItem, Product
+from allocation.entrypoints.app import create_app
 
 
 def make_test_batch_and_order_item(
@@ -63,5 +63,5 @@ def make_test_product(sku=None, batches: Set[Batch] = None):
 def client():
     app = create_app()
 
-    with app.test_client() as client:
-        yield client
+    with app.test_client() as flask_client:
+        yield flask_client
