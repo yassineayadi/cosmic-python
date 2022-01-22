@@ -14,7 +14,7 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    DB_PATH = CURRENT_DIRECTORY / Path("devdb.db")
+    DB_PATH = CURRENT_DIRECTORY / Path("dev.db")
     DB_CONNECTION_SETTINGS = "?mode=rw&check_same_thread=False"
     DB_URI = DB_PATH.as_uri() + DB_CONNECTION_SETTINGS
     SQLA_CONNECTION_STRING = f"sqlite:///{DB_PATH}" + DB_CONNECTION_SETTINGS

@@ -7,8 +7,9 @@ from uuid import uuid4
 import pytest
 
 from allocation.core import domain
-from allocation.core.domain import SKU, Batch, Customer, Order, OrderItem, Product
+from allocation.core.domain import Batch, Customer, Order, OrderItem, Product, SKU
 from allocation.entrypoints.app import create_app
+from allocation.interfaces.database import db, orm
 
 
 def make_test_batch_and_order_item(
@@ -65,3 +66,14 @@ def client():
 
     with app.test_client() as flask_client:
         yield flask_client
+
+
+@pytest.fixture(scope="session")
+def sqlite_engine():
+    return db.engine
+
+
+@pytest.fixture(autouse=True, scope="session")
+def init_sqlite3_memory_db(sqlite_engine):
+    orm.mapper_registry.metadata.bind = sqlite_engine
+    orm.mapper_registry.metadata.create_all()
