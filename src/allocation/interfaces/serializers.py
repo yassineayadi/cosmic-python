@@ -14,6 +14,11 @@ class SKUSchema(Schema):
         return SKU(data["uuid"], data["name"])
 
 
+class SKUListSchema(Schema):
+
+    sku_ids = fields.List(fields.UUID())
+
+
 class CreateSKUSchema(Schema):
 
     sku_names = fields.List(fields.Str)
