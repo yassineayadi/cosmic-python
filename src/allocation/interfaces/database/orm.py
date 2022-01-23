@@ -27,7 +27,8 @@ order_items = Table(
     "order_items",
     mapper_registry.metadata,
     Column("uuid", GUID, primary_key=True),
-    Column("_sku_id", GUID, ForeignKey("skus.uuid"), ForeignKey("products._sku_id")),
+    Column("_sku_id", GUID, ForeignKey("skus.uuid")),
+    Column("_product_id", GUID, ForeignKey("products._sku_id")),
     Column("quantity", Integer),
     Column("order_id", String(36)),
 )
