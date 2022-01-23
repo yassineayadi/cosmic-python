@@ -101,8 +101,8 @@ class Batch(Entity):
 
 class Product:
     def __init__(self, sku, order_items=None, batches=None):
-        batches = batches if batches else set()
-        order_items = order_items if order_items else set()
+        batches: Set[Batch] = batches if batches else set()
+        order_items: Set[OrderItem] = order_items if order_items else set()
         self.sku = sku
         self.sku_id = sku.uuid
         self.batches = batches
@@ -188,19 +188,21 @@ def create_customer_id(first_name: str, last_name: str) -> Customer:
     return Customer(uuid4(), first_name, last_name)
 
 
-def create_order(order_item, customer) -> Order:
-    return Order(uuid4(), order_item, customer)
+def create_order(order_items: List[OrderItem], customer: Customer) -> Order:
+    return Order(uuid4(), order_items, customer)
 
 
-def create_product(sku) -> Product:
-    return Product(sku)
+def create_product(
+    sku: SKU, batches: Set[Batch] = None, order_items: Set[OrderItem] = None
+) -> Product:
+    return Product(sku, batches=batches, order_items=order_items)
 
 
-def create_order_item(sku: SKU, quantity: int, uuid=None) -> OrderItem:
-    uuid = uuid if uuid else uuid4()
+def create_order_item(sku: SKU, quantity: int) -> OrderItem:
+    uuid = uuid4()
     return OrderItem(uuid, sku, quantity)
 
 
-def create_batch(sku: SKU, quantity: int, eta: date = None, uuid=None):
-    uuid = uuid if uuid else uuid4()
+def create_batch(sku: SKU, quantity: int, eta: date = None):
+    uuid = uuid4()
     return Batch(uuid=uuid, sku=sku, quantity=quantity, eta=eta)

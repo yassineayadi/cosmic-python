@@ -1,7 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from functools import reduce
-from typing import Dict, List, Set
+from typing import Dict, Iterator, List
 
 from sqlalchemy.orm import Session
 
@@ -50,12 +49,12 @@ class AbstractRepo(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_all_batches(self) -> Set[Batch]:
+    def get_all_batches(self) -> Iterator[Batch]:
         """Retrieves all batches currently registered."""
         ...
 
     @abstractmethod
-    def get_all_order_items(self) -> Set[OrderItem]:
+    def get_all_order_items(self) -> Iterator[OrderItem]:
         """Retrieves all order items currently registered."""
 
     def list(self) -> List[Product]:
@@ -95,18 +94,14 @@ class ProductsRepo(AbstractRepo):
         self.seen.add(product)
         return product
 
-    def get_all_skus(self) -> List[SKU]:
-        return [p.sku for p in self.list()]
+    def get_all_skus(self) -> Iterator[SKU]:
+        return (p.sku for p in self.list())
 
-    def get_all_order_items(self) -> Set[OrderItem]:
-        order_item_sets = [p.order_items for p in self.list()]
-        order_items = reduce(lambda a, b: {*a, *b}, order_item_sets)
-        return order_items
+    def get_all_order_items(self) -> Iterator[OrderItem]:
+        return (o for p in self.list() for o in p.order_items)
 
-    def get_all_batches(self) -> Set[Batch]:
-        batch_sets = [p.batches for p in self.list()]
-        batches = reduce(lambda a, b: {*a, *b}, batch_sets)
-        return batches
+    def get_all_batches(self) -> Iterator[Batch]:
+        return (b for p in self.list() for b in p.batches)
 
 
 class MockRepo(AbstractRepo, Dict):
@@ -126,10 +121,10 @@ class MockRepo(AbstractRepo, Dict):
         except KeyError:
             pass
 
-    def _list(self) -> List[Product]:
+    def _list(self) -> Iterator[Product]:
         return list(self.values())
 
-    def get_all_batches(self) -> Set[Batch]:
+    def get_all_batches(self) -> Iterator[Batch]:
         pass
 
 
