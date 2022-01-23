@@ -10,19 +10,19 @@ from conftest import (
     make_test_sku,
 )
 
-from allocation.interfaces.serializers import (
-    BatchSchema,
+from allocation.entrypoints.serializers import (
+    Batch,
     CustomerSchema,
-    OrderItemSchema,
+    OrderItem,
     OrderSchema,
-    SKUSchema,
+    SKU,
 )
 
 
 class TestSerializers(unittest.TestCase):
     def test_serialize_sku_schema_with_correct_schema(self):
         sku = make_test_sku()
-        s_sku = SKUSchema().dumps(sku)
+        s_sku = SKU().dumps(sku)
         try:
             json.loads(s_sku)
         except ValueError as e:
@@ -32,7 +32,7 @@ class TestSerializers(unittest.TestCase):
         uuid = uuid4()
         s_sku = json.dumps({"uuid": str(uuid), "name": "my correct test name"})
         # sku = make_test_sku()
-        sku = SKUSchema().loads(s_sku)
+        sku = SKU().loads(s_sku)
         self.assertTrue(sku.uuid == uuid)
 
     def test_serialize_customer_schema_with_correct_schema(self):
@@ -57,7 +57,7 @@ class TestSerializers(unittest.TestCase):
     def test_serialize_order_item_with_correct_schema(self):
         order_item = make_test_order_item(make_test_sku(), 20)
 
-        s_order_item = OrderItemSchema().dumps(order_item)
+        s_order_item = OrderItem().dumps(order_item)
 
         try:
             json.loads(s_order_item)
@@ -78,9 +78,9 @@ class TestSerializers(unittest.TestCase):
     def test_serialize_batch_with_correct_schema(self):
         sku = make_test_sku()
         batch, order_item = make_test_batch_and_order_item(sku, 20, 2)
-        s_batch = BatchSchema().dumps(batch)
+        s_batch = Batch().dumps(batch)
 
-        data = BatchSchema().loads(s_batch)
+        data = Batch().loads(s_batch)
         self.assertTrue(bool(data.get("uuid", None)) is True)
         self.assertTrue(bool(data.get("sku", None)) is True)
         self.assertTrue(bool(data.get("quantity", None)) is True)

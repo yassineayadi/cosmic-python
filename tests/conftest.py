@@ -12,24 +12,23 @@ from allocation.entrypoints.app import create_app
 from allocation.interfaces.database import db, orm
 
 
-def make_test_batch_and_order_item(
-    sku, batch_qty, line_qty, eta=None
-) -> Tuple[Batch, OrderItem]:
+def make_test_sku() -> SKU:
+    suffix = "".join([random.choice(ascii_uppercase) for _ in range(5)])
+    sku_name = f"SKU-{suffix}"
+    return domain.create_sku(sku_name)
+
+
+def make_test_product(
+    sku=None, batches: Set[Batch] = None, order_items: Set[OrderItem] = None
+) -> Product:
     sku = sku if sku else make_test_sku()
-    return make_test_batch(sku, batch_qty, eta), make_test_order_item(sku, line_qty)
+    batches = batches if batches else set()
+    product = domain.create_product(sku, batches, order_items)
+    return product
 
 
-def make_test_sku_product_and_batch() -> Tuple[SKU, Product, Batch]:
-    sku = make_test_sku()
-    batch = make_test_batch(sku, 20)
-    product = make_test_product(sku, {batch})
-    return sku, product, batch
-
-
-def make_test_batch(sku=None, batch_qty=20, eta=None) -> Batch:
-    eta = eta if eta else date.today()
-    sku = sku if sku else make_test_sku()
-    return Batch(uuid4(), sku, batch_qty, eta=eta)
+def make_test_customer() -> Customer:
+    return Customer(uuid=uuid4(), first_name="Yassine", last_name="Ayadi")
 
 
 def make_test_order() -> Order:
@@ -38,26 +37,35 @@ def make_test_order() -> Order:
     return Order(uuid4(), [test_order_item], test_customer)
 
 
-def make_test_sku() -> SKU:
-    suffix = "".join([random.choice(ascii_uppercase) for _ in range(5)])
-    return SKU(uuid4(), f"SKU-{suffix}")
+def make_test_batch(sku=None, batch_qty=20, eta=None) -> Batch:
+    eta = eta if eta else date.today()
+    sku = sku if sku else make_test_sku()
+    return Batch(uuid4(), sku, batch_qty, eta=eta)
 
 
-def make_test_customer():
-    return Customer(uuid=uuid4(), first_name="Yassine", last_name="Ayadi")
-
-
-def make_test_order_item(sku=None, quantity=10):
+def make_test_order_item(sku=None, quantity=10) -> OrderItem:
     sku = sku if sku else make_test_sku()
     return OrderItem(uuid4(), sku, quantity=quantity)
 
 
-def make_test_product(sku=None, batches: Set[Batch] = None):
+def make_test_batch_and_order_item(
+    sku, batch_qty, line_qty, eta=None
+) -> Tuple[Batch, OrderItem]:
     sku = sku if sku else make_test_sku()
-    batches = batches if batches else set()
-    product = domain.create_product(sku)
-    [product.register_batch(b) for b in batches]
-    return product
+    return make_test_batch(sku, batch_qty, eta), make_test_order_item(sku, line_qty)
+
+
+def make_test_sku_and_product() -> Tuple[SKU, Product]:
+    sku = make_test_sku()
+    product = make_test_product(sku)
+    return sku, product
+
+
+def make_test_sku_product_and_batch() -> Tuple[SKU, Product, Batch]:
+    sku = make_test_sku()
+    batch = make_test_batch(sku, 20)
+    product = make_test_product(sku, {batch})
+    return sku, product, batch
 
 
 @pytest.fixture

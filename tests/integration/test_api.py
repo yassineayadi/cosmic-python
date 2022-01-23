@@ -5,14 +5,15 @@ from conftest import (
     make_test_batch_and_order_item,
     make_test_product,
     make_test_sku,
+    make_test_sku_and_product,
 )
 from flask.testing import FlaskClient
 
 from allocation import services
 from allocation.core.commands import CreateProductCommand
-from allocation.interfaces import serializers
+from allocation.entrypoints import serializers
 from allocation.interfaces.database.db import session_factory
-from allocation.interfaces.serializers import SKUSchema
+from allocation.entrypoints.serializers import SKU
 from allocation.unit_of_work import UnitOfWork
 
 
@@ -22,7 +23,7 @@ def test_index(client: FlaskClient):
 
 
 def test_list_skus(client: FlaskClient):
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         test_sku_1 = make_test_sku()
         test_sku_2 = make_test_sku()
         test_pro_1 = make_test_product(test_sku_1)
@@ -32,14 +33,26 @@ def test_list_skus(client: FlaskClient):
 
     response = client.get("/skus")
 
-    retrieved_skus = SKUSchema().load(response.json, many=True)
+    retrieved_skus = SKU().load(response.json, many=True)
     retrieved_skus_refs = [sku.uuid for sku in retrieved_skus]
     for sku_ref in sku_refs:
         assert sku_ref in retrieved_skus_refs
 
 
+def test_create_product(client: FlaskClient):
+
+    sku_name = make_test_sku().name
+    data = {"name": sku_name}
+    response = client.post("product/create", json=data, follow_redirects=True)
+    sku_id = response.json["sku"]["uuid"]
+
+    with UnitOfWork() as uow:
+        product = uow.products.get(sku_id)
+        assert product is not None
+
+
 def test_create_batch(client: FlaskClient):
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         test_sku_1 = make_test_sku()
         product = make_test_product(sku=test_sku_1)
         uow.products.add(product)
@@ -52,15 +65,14 @@ def test_create_batch(client: FlaskClient):
     }
 
     client.post("/batch/create", json=data)
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         product = uow.products.get(sku_id)
         assert len(product.batches) == 1
 
 
 def test_redirect_on_create_batch(client: FlaskClient):
-    with UnitOfWork(session_factory) as uow:
-        test_sku = make_test_sku()
-        product = make_test_product(sku=test_sku)
+    with UnitOfWork() as uow:
+        sku, product = make_test_sku_and_product()
         uow.products.add(product)
         sku_id = product.sku_id
 
@@ -70,10 +82,10 @@ def test_redirect_on_create_batch(client: FlaskClient):
         "quantity": 20,
     }
     response = client.post("batch/create", json=data, follow_redirects=True)
-    with UnitOfWork(session_factory) as uow:
+    with UnitOfWork() as uow:
         response_batch = response.json
         product = uow.products.get(sku_id)
-        saved_batch = serializers.BatchSchema().dump(product.batches.pop())
+        saved_batch = serializers.Batch().dump(product.batches.pop())
         assert response_batch == saved_batch
 
 
@@ -91,7 +103,7 @@ def test_get_batch(client: FlaskClient):
         batch = make_test_batch(product.sku, batch_qty=10, eta=datetime.datetime.now())
         product.register_batch(batch)
         batch_id = batch.uuid
-        batch_data = serializers.BatchSchema().dump(batch)
+        batch_data = serializers.Batch().dump(batch)
 
     response = client.get(f"batch/{batch_id!s}")
     response_data = response.json
@@ -103,7 +115,7 @@ def test_allocation_one_matching_batch_order_item_pair(client: FlaskClient):
     with UnitOfWork() as uow:
         sku = make_test_sku()
         batch, order_item = make_test_batch_and_order_item(sku, 20, 2)
-        product = make_test_product(sku, batches={batch})
+        product = make_test_product(sku, batches={batch}, order_items={order_item})
         uow.products.add(product)
         sku_id = sku.uuid
         order_item_id = order_item.uuid

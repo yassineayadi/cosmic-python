@@ -1,6 +1,7 @@
-import unittest
 from datetime import date, timedelta
 from uuid import uuid4
+
+import pytest
 
 from conftest import (
     make_test_batch,
@@ -24,36 +25,34 @@ from allocation.core.domain import (
 from allocation.core.events import OutOfStock
 
 
-class TestSKU(unittest.TestCase):
+class TestSKU:
     def test_create_sku(self):
-
         uuid = uuid4()
         sku = SKU(uuid=uuid, name="my SKU name")
-        self.assertEqual(sku.uuid, uuid)
-        self.assertEqual(sku.name, "my SKU name")
+        assert sku.uuid == uuid
+        assert sku.name == "my SKU name"
 
 
-class TestCustomer(unittest.TestCase):
+class TestCustomer:
     def test_create_customer(self):
-
         uuid = uuid4()
         customer = Customer(uuid=uuid, first_name="Yassine", last_name="Ayadi")
-        self.assertEqual(customer.uuid, uuid)
-        self.assertEqual(customer.first_name, "Yassine")
-        self.assertEqual(customer.last_name, "Ayadi")
+        assert customer.uuid == uuid
+        assert customer.first_name == "Yassine"
+        assert customer.last_name == "Ayadi"
 
 
-class TestOrderItem(unittest.TestCase):
+class TestOrderItem:
     def test_create_order_item(self):
         sku = make_test_sku()
         uuid = uuid4()
         order_item = OrderItem(uuid=uuid, sku=sku, quantity=2)
-        self.assertEqual(order_item.uuid, uuid)
-        self.assertEqual(order_item.sku, sku)
-        self.assertEqual(order_item.quantity, 2)
+        assert order_item.uuid == uuid
+        assert order_item.sku == sku
+        assert order_item.quantity == 2
 
 
-class TestOrder(unittest.TestCase):
+class TestOrder:
     def test_create_order(self):
         uuid = uuid4()
         sku = make_test_sku()
@@ -62,51 +61,51 @@ class TestOrder(unittest.TestCase):
 
         order = Order(uuid=uuid, order_items=[order_item], customer=customer)
 
-        self.assertEqual(order.uuid, uuid)
-        self.assertEqual(order.order_items, [order_item])
-        self.assertEqual(order.customer, customer)
+        assert order.uuid == uuid
+        assert order.order_items == [order_item]
+        assert order.customer == customer
 
 
-class TestBatch(unittest.TestCase):
+class TestBatch:
     def test_create_batch(self):
         uuid = uuid4()
 
         sku = make_test_sku()
         batch = Batch(uuid=uuid, sku=sku, quantity=20, eta=date.today())
 
-        self.assertEqual(batch.uuid, uuid)
-        self.assertEqual(batch.sku, sku)
-        self.assertEqual(batch.quantity, 20)
-        self.assertEqual(batch.eta, date.today())
+        assert batch.uuid == uuid
+        assert batch.sku == sku
+        assert batch.quantity == 20
+        assert batch.eta == date.today()
 
     def test_batch_allocation(self):
         batch, order_item = make_test_batch_and_order_item(make_test_sku(), 20, 2)
         batch.allocate_available_quantity(order_item)
-        self.assertEqual(batch.available_quantity, 18)
+        assert batch.available_quantity == 18
 
     def test_can_allocate_if_available_less_then_required(self):
         batch, order_item = make_test_batch_and_order_item(make_test_sku(), 20, 2)
-        self.assertTrue(bool(batch.can_allocate(order_item)))
+        assert bool(batch.can_allocate(order_item)) is True
 
     def test_can_allocate_if_available_is_equal_to_required(self):
         batch, order_item = make_test_batch_and_order_item(make_test_sku(), 20, 20)
-        self.assertTrue(batch.can_allocate(order_item))
+        assert batch.can_allocate(order_item) is True
 
     def test_cannot_allocate_if_different_sku(self):
-        batch_1, _ = make_test_batch_and_order_item(make_test_sku(), 20, 10)
+        batch_1 = make_test_batch(make_test_sku())
         order_item_2 = make_test_order_item(make_test_sku(), 10)
-        self.assertFalse(batch_1.can_allocate(order_item_2))
+        assert batch_1.can_allocate(order_item_2) is False
 
     def test_can_only_deallocate_allocated_lines(self):
         batch_1, order_item_1 = make_test_batch_and_order_item(make_test_sku(), 20, 10)
-        self.assertFalse(bool(batch_1.deallocate_available_quantity(order_item_1)))
+        assert bool(batch_1.deallocate_available_quantity(order_item_1)) is False
 
     def test_batch_sorting_based_on_eta(self):
         earlier_batch, _ = make_test_batch_and_order_item(make_test_sku(), 20, 10)
         later_batch, _ = make_test_batch_and_order_item(
             make_test_sku(), 20, 10, date.today() + timedelta(1)
         )
-        self.assertTrue(later_batch > earlier_batch)
+        assert (later_batch > earlier_batch) is True
 
     def test_allocate_function_with_matching_pair(self):
         sku_1 = make_test_sku()
@@ -114,9 +113,9 @@ class TestBatch(unittest.TestCase):
         product_1 = Product(sku_1)
         product_1.register_batch(batch_1)
         successful_allocation = product_1.allocate(order_item_1)
-        self.assertTrue(successful_allocation is not None)
+        assert (successful_allocation is not None) is True
 
-    def test_creates_OutOfStockEvent_when_batch_has_insufficient_stock_available(self):
+    def test_create_outofstock_event_when_batch_has_insufficient_stock_available(self):
         sku, product, batch_with_insufficient_stock = make_test_sku_product_and_batch()
         product.register_batch(batch_with_insufficient_stock)
         order_item = make_test_order_item(sku, 30)
@@ -125,22 +124,21 @@ class TestBatch(unittest.TestCase):
         assert allocation is None
         assert isinstance(product.events.pop(), OutOfStock)
 
-    class TestProduct(unittest.TestCase):
+    class TestProduct:
         def test_create_product(self):
-            sku_1 = make_test_sku()
-            product_1 = Product(sku_1)
-            self.assertIsInstance(product_1, Product)
+            sku = make_test_sku()
+            product = Product(sku)
+            assert isinstance(product, Product)
 
         def test_create_product_with_empty_batches(self):
-            product_1 = make_test_product()
-            self.assertTrue(bool(product_1.batches) is False)
+            product = make_test_product()
+            assert bool(product.batches) is False
 
         def test_raise_NonMatchingSKU_when_registering_batch_with_non_matching_sku(
             self,
         ):
-            sku_1 = make_test_sku()
-            product_1 = make_test_product(sku_1)
-            non_matching_batch_1 = make_test_batch()
-            self.assertRaises(
-                NonMatchingSKU, product_1.register_batch, batch=non_matching_batch_1
-            )
+            sku = make_test_sku()
+            product = make_test_product(sku)
+            non_matching_batch = make_test_batch()
+            with pytest.raises(NonMatchingSKU):
+                product.register_batch(non_matching_batch)
