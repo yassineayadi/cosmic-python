@@ -41,8 +41,8 @@ def test_list_skus(client: FlaskClient):
 
 def test_create_product(client: FlaskClient):
 
-    sku_name = make_test_sku().name
-    data = {"name": sku_name}
+    name = make_test_sku().name
+    data = {"name": name}
     response = client.post("product/create", json=data, follow_redirects=True)
     sku_id = response.json["sku"]["uuid"]
 
@@ -60,7 +60,7 @@ def test_create_batch(client: FlaskClient):
 
     data = {
         "sku_id": sku_id,
-        "eta": datetime.datetime.now().timestamp(),
+        "eta": str(datetime.date.today()),
         "quantity": 20,
     }
 
@@ -78,7 +78,7 @@ def test_redirect_on_create_batch(client: FlaskClient):
 
     data = {
         "sku_id": sku_id,
-        "eta": datetime.datetime.now().timestamp(),
+        "eta": str(datetime.date.today()),
         "quantity": 20,
     }
     response = client.post("batch/create", json=data, follow_redirects=True)
@@ -119,7 +119,7 @@ def test_allocation_one_matching_batch_order_item_pair(client: FlaskClient):
         uow.products.add(product)
         sku_id = sku.uuid
         order_item_id = order_item.uuid
-        data = {"order_item_id": order_item_id, "_sku_id": sku_id}
+        data = {"order_item_id": order_item_id, "sku_id": sku_id}
 
     client.post("/allocate", json=data)
 

@@ -21,7 +21,7 @@ def test_allocate_via_api_and_retrieve_allocated_event_from_external_bus(
         sku_id = sku.uuid
         order_item_id = order_item.uuid
 
-    data = {"order_item_id": order_item_id, "_sku_id": sku_id}
+    data = {"order_item_id": order_item_id, "sku_id": sku_id}
 
     response = client.post("/allocate", json=data)
     print(response)

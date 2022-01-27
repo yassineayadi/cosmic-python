@@ -2,7 +2,7 @@ from flask import Request, abort
 from flask_marshmallow import Schema
 from marshmallow import ValidationError, fields, post_load
 
-from allocation.core.domain import SKU, OrderItem
+from allocation.core import domain
 
 
 class SKU(Schema):
@@ -12,7 +12,7 @@ class SKU(Schema):
 
     @post_load
     def make_sku_schema(self, data, **kwargs):
-        return SKU(data["uuid"], data["name"])
+        return domain.SKU(data["uuid"], data["name"])
 
 
 class SKUListSchema(Schema):
@@ -41,7 +41,7 @@ class OrderItem(Schema):
 
     @post_load
     def make_order_item(self, data, **kwargs):
-        return OrderItem(**data)
+        return domain.OrderItem(**data)
 
 
 class OrderSchema(Schema):
@@ -61,6 +61,12 @@ class Batch(Schema):
     available_quantity = fields.Integer()
 
 
+class CreateBatch(Schema):
+    sku_id = fields.UUID()
+    quantity = fields.Integer()
+    eta = fields.Date()
+
+
 class Product(Schema):
     sku = fields.Nested(SKU)
     sku_id = fields.UUID()
@@ -69,7 +75,17 @@ class Product(Schema):
     version_number = fields.Integer()
 
 
-class DataLoader:
+class Allocate(Schema):
+    sku_id = fields.UUID()
+    order_item_id = fields.UUID()
+
+
+class Validate:
+    """Wrapper for Marshmallow validation.
+
+    Uses the provided schema to perform validation. Returns the deserialized data on __enter__,
+    otherwise raises ValidationError."""
+
     def __init__(self, schema: Schema, request: Request):
         self.schema = schema
         self.request = request

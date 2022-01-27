@@ -180,8 +180,8 @@ class Product:
         self.version_number += 1
 
 
-def create_sku(sku_name) -> SKU:
-    return SKU(uuid4(), sku_name)
+def create_sku(name) -> SKU:
+    return SKU(uuid4(), name)
 
 
 def create_customer_id(first_name: str, last_name: str) -> Customer:

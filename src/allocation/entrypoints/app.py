@@ -1,15 +1,9 @@
-from datetime import datetime
-from uuid import UUID
-
+import marshmallow as ma
 from flask import Blueprint, Flask, jsonify, redirect, request, url_for
-from marshmallow import ValidationError
 
-from allocation import messagebus, services, config
-
+from allocation import config, messagebus, services
 from allocation.core import commands, domain
 from allocation.entrypoints import serializers
-
-from allocation.entrypoints.serializers import DataLoader
 from allocation.unit_of_work import UnitOfWork
 
 
@@ -23,8 +17,11 @@ def create_app() -> Flask:
 bp = Blueprint("api", __name__)
 
 
-@bp.errorhandler(ValidationError)
-def handle_validation_error(e: ValidationError):
+@bp.errorhandler(ma.ValidationError)
+def handle_validation_error(e: ma.ValidationError):
+    """Handles marshmallow ValidationError.
+
+    Returns 400 HTTP Response and field level error details."""
     return jsonify(e.messages), 400
 
 
@@ -37,13 +34,11 @@ def index():
 
 @bp.route("/allocate", methods=["POST"])
 def allocate():
-    data = request.json
-    order_item_id = UUID(data["order_item_id"])
-    sku_id = UUID(data["_sku_id"])
-    cmd = commands.Allocate(sku_id, order_item_id)
-    messagebus.handle([cmd], UnitOfWork())
+    with serializers.Validate(serializers.Allocate(), request) as data:
+        cmd = commands.Allocate(**data)
+        messagebus.handle([cmd], UnitOfWork())
 
-    return redirect(url_for(".get_order_item", order_item_id=order_item_id))
+        return redirect(url_for(".get_order_item", order_item_id=data["order_item_id"]))
 
 
 @bp.route("/order_item/allocations/<uuid:order_item_id>", methods=["GET"])
@@ -69,21 +64,17 @@ def get_batch(batch_id):
 
 @bp.route("/batch/create", methods=["POST"])
 def create_batch():
-    data = request.json
-    cmd = commands.CreateBatch(
-        sku_id=data["sku_id"],
-        quantity=data["quantity"],
-        eta=datetime.fromtimestamp(data["eta"]),
-    )
-    batch_id = services.create_batch(cmd, UnitOfWork())
-    response = redirect(url_for(".get_batch", batch_id=batch_id))
-    return response
+    with serializers.Validate(serializers.CreateBatch(), request) as data:
+        cmd = commands.CreateBatch(**data)
+        batch_id = services.create_batch(cmd, UnitOfWork())
+        response = redirect(url_for(".get_batch", batch_id=batch_id))
+        return response
 
 
 @bp.route("/product/create", methods=["POST"])
 def create_product():
-    with DataLoader(serializers.CreateSKU(), request) as data:
-        sku = domain.create_sku(data["name"])
+    with serializers.Validate(serializers.CreateSKU(), request) as data:
+        sku = domain.create_sku(**data)
         cmd = commands.CreateProductCommand(sku)
         sku_id = services.create_product(cmd, UnitOfWork())
         return redirect(url_for(".get_product", sku_id=sku_id))

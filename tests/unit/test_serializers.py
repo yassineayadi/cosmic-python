@@ -1,21 +1,23 @@
+import datetime
 import json
 import unittest
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from conftest import (
-    make_test_batch_and_order_item,
-    make_test_customer,
-    make_test_order,
-    make_test_order_item,
-    make_test_sku,
-)
-
+from allocation.entrypoints import serializers
 from allocation.entrypoints.serializers import (
     Batch,
     CustomerSchema,
     OrderItem,
     OrderSchema,
     SKU,
+)
+from conftest import (
+    make_test_batch,
+    make_test_batch_and_order_item,
+    make_test_customer,
+    make_test_order,
+    make_test_order_item,
+    make_test_sku,
 )
 
 
@@ -87,3 +89,18 @@ class TestSerializers(unittest.TestCase):
         self.assertTrue(bool(data.get("eta", None)) is True)
         self.assertTrue(bool(data.get("allocated_order_items", None)) is False)
         self.assertTrue(bool(data.get("available_quantity", None)) is True)
+
+    def test_load_create_batch_with_correct_schema(self):
+        batch = make_test_batch(make_test_sku())
+        batch_data = json.dumps(
+            {
+                "sku_id": str(batch.sku.uuid),
+                "quantity": str(batch.quantity),
+                "eta": str(batch.eta),
+            }
+        )
+
+        create_batch = serializers.CreateBatch().loads(batch_data)
+        assert isinstance(create_batch["sku_id"], UUID)
+        assert isinstance(create_batch["quantity"], int)
+        assert isinstance(create_batch["eta"], datetime.date)
