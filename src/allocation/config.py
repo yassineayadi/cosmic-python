@@ -11,6 +11,7 @@ class Config:
     SQLA_CONNECTION_STRING: str
     DB_TYPE: str
     REDIS_CONFIG = {"host": "localhost", "port": 6379, "db": 0}
+    SWAGGER = {"title": "Allocation Service"}
 
 
 class DevelopmentConfig(Config):

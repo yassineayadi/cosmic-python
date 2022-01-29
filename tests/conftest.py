@@ -68,7 +68,7 @@ def make_test_sku_product_and_batch() -> Tuple[SKU, Product, Batch]:
     return sku, product, batch
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def client():
     app = create_app()
 

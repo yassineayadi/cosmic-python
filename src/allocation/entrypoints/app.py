@@ -1,4 +1,7 @@
+import flasgger
 import marshmallow as ma
+from apispec.ext.marshmallow import MarshmallowPlugin
+from apispec_webframeworks.flask import FlaskPlugin
 from flask import Blueprint, Flask, jsonify, redirect, request, url_for
 
 from allocation import config, messagebus, services
@@ -11,7 +14,18 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(config.get_config())
     app.register_blueprint(bp)
+
+    template = spec.to_flasgger(app, definitions=serializers.definitions)
+    flasgger.Swagger(app, template=template)
     return app
+
+
+spec = flasgger.APISpec(
+    title="Allocation Service",
+    version="1.0",
+    openapi_version="2.0",
+    plugins=(FlaskPlugin(), MarshmallowPlugin()),
+)
 
 
 bp = Blueprint("api", __name__)
@@ -27,17 +41,29 @@ def handle_validation_error(e: ma.ValidationError):
 
 @bp.route("/", methods=["GET", "POST"])
 def index():
-    data = request.data
-
-    return b"Index"
+    return redirect("/apidocs/")
 
 
 @bp.route("/allocate", methods=["POST"])
 def allocate():
+    """Gets an order item.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/Allocate'
+    responses:
+      302:
+        schema:
+          $ref: '#/definitions/OrderItem'
+    tags:
+      - order items
+    """
     with serializers.Validate(serializers.Allocate(), request) as data:
         cmd = commands.Allocate(**data)
         messagebus.handle([cmd], UnitOfWork())
-
         return redirect(url_for(".get_order_item", order_item_id=data["order_item_id"]))
 
 
@@ -48,6 +74,21 @@ def get_allocations():
 
 @bp.route("/order_item/<uuid:order_item_id>", methods=["GET"])
 def get_order_item(order_item_id):
+    """Gets an order item.
+    ---
+    parameters:
+      - in: path
+        name: order_item_id
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        schema:
+          $ref: '#/definitions/OrderItem'
+    tags:
+      - order items
+    """
     with UnitOfWork() as uow:
         order_items = uow.products.get_all_order_items()
         order_item = next(oi for oi in order_items if oi.uuid == order_item_id)
@@ -56,6 +97,22 @@ def get_order_item(order_item_id):
 
 @bp.route("/batch/<uuid:batch_id>", methods=["GET"])
 def get_batch(batch_id):
+    """Gets a batch.
+    ---
+    parameters:
+      - in: path
+        name: batch_id
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: a batch to be returned
+        schema:
+          $ref: '#/definitions/Batch'
+    tags:
+      - batches
+    """
     with UnitOfWork() as uow:
         batches = uow.products.get_all_batches()
         batch = next(b for b in batches if b.uuid == batch_id)
@@ -64,6 +121,21 @@ def get_batch(batch_id):
 
 @bp.route("/batch/create", methods=["POST"])
 def create_batch():
+    """Creates a new batch.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateBatch'
+    responses:
+      302:
+        schema:
+          $ref: '#/definitions/Batch'
+    tags:
+      - batches
+    """
     with serializers.Validate(serializers.CreateBatch(), request) as data:
         cmd = commands.CreateBatch(**data)
         batch_id = services.create_batch(cmd, UnitOfWork())
@@ -73,6 +145,21 @@ def create_batch():
 
 @bp.route("/product/create", methods=["POST"])
 def create_product():
+    """Creates a new product.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateSKU'
+    responses:
+      302:
+        schema:
+          $ref: '#/definitions/Product'
+    tags:
+      - products
+    """
     with serializers.Validate(serializers.CreateSKU(), request) as data:
         sku = domain.create_sku(**data)
         cmd = commands.CreateProductCommand(sku)
@@ -82,6 +169,21 @@ def create_product():
 
 @bp.route("/product/<uuid:sku_id>", methods=["GET"])
 def get_product(sku_id):
+    """Gets a product by SKU ID.
+    ---
+    parameters:
+      - in: path
+        name: sku_id
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        schema:
+          $ref: '#/definitions/Product'
+    tags:
+      - products
+    """
     with UnitOfWork() as uow:
         product = uow.products.get(sku_id)
         data = serializers.Product().dump(product)
@@ -90,6 +192,17 @@ def get_product(sku_id):
 
 @bp.route("/products", methods=["GET"])
 def list_products():
+    """Lists all products.
+    ---
+    responses:
+      200:
+        schema:
+          type: 'array'
+          items:
+            $ref: '#/definitions/Product'
+    tags:
+      - products
+    """
     with UnitOfWork() as uow:
         products = uow.products.list()
         data = serializers.Product().dump(products, many=True)

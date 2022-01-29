@@ -18,8 +18,8 @@ from allocation.unit_of_work import UnitOfWork
 
 
 def test_index(client: FlaskClient):
-    rv = client.get("/")
-    assert b"Index" in rv.data
+    rv = client.get("/", follow_redirects=True)
+    assert rv.status_code == 200
 
 
 def test_list_skus(client: FlaskClient):

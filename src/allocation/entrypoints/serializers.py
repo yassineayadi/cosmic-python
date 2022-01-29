@@ -1,3 +1,5 @@
+import inspect
+
 from flask import Request, abort
 from flask_marshmallow import Schema
 from marshmallow import ValidationError, fields, post_load
@@ -78,6 +80,12 @@ class Product(Schema):
 class Allocate(Schema):
     sku_id = fields.UUID()
     order_item_id = fields.UUID()
+
+
+# All Schema definitions
+definitions = tuple(
+    s for s in locals().values() if inspect.isclass(s) and issubclass(s, Schema)
+)
 
 
 class Validate:
