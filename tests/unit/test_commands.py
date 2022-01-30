@@ -103,3 +103,20 @@ def test_idempotency_of_discard_order_item_command():
 
     services.discard_order_item(cmd_1, UnitOfWork())
     services.discard_order_item(cmd_2, UnitOfWork())
+
+
+def test_update_order_item_command():
+    with UnitOfWork() as uow:
+        sku, product, order_item = make_test_sku_product_and_order_item()
+        product.register_order_item(order_item)
+        uow.products.add(product)
+        sku_id, order_item_id = sku.uuid, order_item.uuid
+
+    cmd = commands.UpdateOrderItem(sku_id, order_item_id, 40)
+    services.update_order_item(cmd, UnitOfWork())
+
+    with UnitOfWork() as uow:
+        order_item = next(
+            oi for oi in uow.products.get_all_order_items() if oi.uuid == order_item_id
+        )
+        assert order_item.quantity == 40

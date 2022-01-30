@@ -29,19 +29,6 @@ class Entity:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-    # @property
-    # def discarded(self):
-    #     return self._discarded
-    #
-    # @discarded.setter
-    # def discarded(self, value):
-    #     if isinstance(value, bool):
-    #         self._discarded = value
-    #
-    # def __post_init__(self):
-    #     self._discarded = False
-    #
-
 
 @dataclass(unsafe_hash=True)
 class SKU(Entity):

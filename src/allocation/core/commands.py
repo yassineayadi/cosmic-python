@@ -63,3 +63,10 @@ class ChangeBatchQuantity(Command):
     sku_id: UUID
     batch_id: UUID
     new_quantity: int
+
+
+@dataclass
+class UpdateOrderItem(Command):
+    sku_id: UUID
+    order_item_id: UUID
+    quantity: int

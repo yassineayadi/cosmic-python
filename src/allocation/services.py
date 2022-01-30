@@ -77,3 +77,13 @@ def change_batch_quantity(
         product = uow.products.get(cmd.sku_id)
         batch = product.change_batch_quantity(cmd.batch_id, cmd.new_quantity)
         return batch.uuid
+
+
+def update_order_item(cmd: commands.UpdateOrderItem, uow: AbstractUnitOfWork) -> UUID:
+    with uow:
+        product = uow.products.get(cmd.sku_id)
+        order_item = next(
+            oi for oi in product.order_items if oi.uuid == cmd.order_item_id
+        )
+        order_item.quantity = cmd.quantity
+        return order_item.uuid

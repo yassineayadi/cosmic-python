@@ -87,6 +87,17 @@ class DiscardOrderItem(Schema):
     order_item_id = fields.UUID()
 
 
+class UpdateOrderItem(Schema):
+    sku_id = fields.UUID()
+    order_item_id = fields.UUID()
+    quantity = fields.Integer()
+
+
+class CreateOrderItem(Schema):
+    sku_id = fields.UUID()
+    quantity = fields.Integer()
+
+
 # All Schema definitions
 definitions = tuple(
     s for s in locals().values() if inspect.isclass(s) and issubclass(s, Schema)

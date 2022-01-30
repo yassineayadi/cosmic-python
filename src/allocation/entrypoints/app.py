@@ -105,6 +105,29 @@ def get_order_item(order_item_id):
         return jsonify(serializers.OrderItem().dump(order_item))
 
 
+@bp.route("/order_item", methods=["PUT"])
+def update_order_item():
+    """Updates an order item.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateOrderItem'
+    responses:
+      200:
+        schema:
+          $ref: '#/definitions/OrderItem'
+    tags:
+     - order items
+    """
+    with serializers.Validate(serializers.UpdateOrderItem(), request) as data:
+        cmd = commands.UpdateOrderItem(**data)
+        services.update_order_item(cmd, UnitOfWork())
+        return redirect(url_for("get_order_item", order_item_id=data["order_item_id"]))
+
+
 @bp.route("/order_item", methods=["DELETE"])
 def delete_order_item():
     """Deletes an order item.
@@ -125,6 +148,28 @@ def delete_order_item():
         cmd = commands.DiscardOrderItem(**data)
         services.discard_order_item(cmd, UnitOfWork())
         return "OK", 200
+
+
+@bp.route("/order_item", methods=["POST"])
+def create_order_item():
+    """Creates an order item.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/OrderItem'
+    responses:
+      200:
+        description: OK
+    tags:
+     - order items
+    """
+    with serializers.Validate(serializers.CreateOrderItem(), request) as data:
+        cmd = commands.CreateOrderItem(**data)
+        order_item_id = services.create_order_item(cmd, UnitOfWork())
+        return redirect(url_for("create_order_item", order_item_id=order_item_id))
 
 
 @bp.route("/batch/<uuid:batch_id>", methods=["GET"])
