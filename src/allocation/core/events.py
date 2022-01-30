@@ -32,6 +32,18 @@ class OrderItemCreated(Event):
 
 
 @dataclass
+class OrderItemDiscarded(Event):
+    sku_id: UUID
+    order_item_id: UUID
+
+
+@dataclass
+class BatchDiscarded(Event):
+    sku_id: UUID
+    batch_id: UUID
+
+
+@dataclass
 class OrderItemAllocated(Event):
     sku_id: UUID
     order_item_id: UUID

@@ -3,18 +3,7 @@ from uuid import UUID
 
 from allocation.core import commands, domain, events
 from allocation.interfaces.external_bus import create_redis_client
-from allocation.repositories import get_repo
 from allocation.unit_of_work import AbstractUnitOfWork
-
-
-def is_valid_sku(sku: domain.SKU) -> bool:
-    repo = get_repo()
-    valid_products = repo.list()
-    return sku in {p.sku.uuid for p in valid_products}
-
-
-class InvalidSKU(Exception):
-    pass
 
 
 def send_email_notification(event: events.OutOfStock) -> None:
@@ -59,6 +48,16 @@ def create_batch(cmd: commands.CreateBatch, uow: AbstractUnitOfWork) -> UUID:
         batch = domain.create_batch(product.sku, cmd.quantity, cmd.eta)
         product.register_batch(batch)
         return batch.uuid
+
+
+def discard_order_item(cmd: commands.DiscardOrderItem, uow: AbstractUnitOfWork) -> None:
+    with uow:
+        product = uow.products.get(cmd.sku_id)
+        order_item = next(
+            (oi for oi in product.order_items if oi.uuid == cmd.order_item_id), None
+        )
+        if order_item:
+            product.deregister_order_item(order_item)
 
 
 def allocate(cmd: commands.Allocate, uow: AbstractUnitOfWork) -> UUID:

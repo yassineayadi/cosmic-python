@@ -14,7 +14,7 @@ class SKU(Schema):
 
     @post_load
     def make_sku_schema(self, data, **kwargs):
-        return domain.SKU(data["uuid"], data["name"])
+        return domain.SKU(uuid=data["uuid"], name=data["name"], discarded=False)
 
 
 class SKUListSchema(Schema):
@@ -78,6 +78,11 @@ class Product(Schema):
 
 
 class Allocate(Schema):
+    sku_id = fields.UUID()
+    order_item_id = fields.UUID()
+
+
+class DiscardOrderItem(Schema):
     sku_id = fields.UUID()
     order_item_id = fields.UUID()
 

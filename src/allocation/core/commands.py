@@ -18,6 +18,10 @@ class Command:
         return {**{"event": self.name}, **asdict(self)}
 
 
+class Discard(Command):
+    """Discard sub-command."""
+
+
 @dataclass
 class Allocate(Command):
     sku_id: UUID
@@ -31,8 +35,19 @@ class CreateOrderItem(Command):
 
 
 @dataclass
+class DiscardOrderItem(Discard):
+    sku_id: UUID
+    order_item_id: UUID
+
+
+@dataclass
+class DiscardBatch(Discard):
+    sku_id: UUID
+    batch_id: UUID
+
+
+@dataclass
 class CreateProductCommand(Command):
-    # sku_name: str
     sku: domain.SKU
 
 

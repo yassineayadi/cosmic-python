@@ -1,7 +1,12 @@
+from itertools import product
+
+import pytest
+
 from conftest import (
     make_test_order_item,
     make_test_sku,
     make_test_sku_product_and_batch,
+    make_test_sku_product_and_order_item,
 )
 
 from allocation import services
@@ -68,3 +73,33 @@ def test_change_batch_quantity_command():
         product = uow.products.get(sku_id)
         batch = product.batches.pop()
         assert len(batch.allocated_order_items) == 1
+
+
+def test_discard_order_item_command():
+    with UnitOfWork() as uow:
+        sku, product, order_item = make_test_sku_product_and_order_item()
+        product.register_order_item(order_item)
+        uow.products.add(product)
+        sku_id, order_item_id = sku.uuid, order_item.uuid
+
+    cmd = commands.DiscardOrderItem(sku_id, order_item_id)
+    services.discard_order_item(cmd, UnitOfWork())
+
+    with UnitOfWork() as uow:
+        product = uow.products.get(sku_id)
+        with pytest.raises(StopIteration):
+            next(oid for oid in product.order_items if oid == order_item_id)
+
+
+def test_idempotency_of_discard_order_item_command():
+    with UnitOfWork() as uow:
+        sku, product, order_item = make_test_sku_product_and_order_item()
+        product.register_order_item(order_item)
+        uow.products.add(product)
+        sku_id, order_item_id = sku.uuid, order_item.uuid
+
+    cmd_1 = commands.DiscardOrderItem(sku_id, order_item_id)
+    cmd_2 = commands.DiscardOrderItem(sku_id, order_item_id)
+
+    services.discard_order_item(cmd_1, UnitOfWork())
+    services.discard_order_item(cmd_2, UnitOfWork())

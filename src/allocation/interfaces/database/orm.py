@@ -1,5 +1,5 @@
 import sqlalchemy
-from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table
+from sqlalchemy import Column, Date, ForeignKey, Integer, String, Table, Boolean
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import registry, relationship
 from sqlalchemy.pool import StaticPool
@@ -15,6 +15,7 @@ skus = Table(
     mapper_registry.metadata,
     Column("uuid", GUID, primary_key=True),
     Column("name", String(255)),
+    Column("discarded", Boolean()),
 )
 customers = Table(
     "customers",
@@ -22,6 +23,7 @@ customers = Table(
     Column("uuid", GUID, primary_key=True),
     Column("first_name", String(100)),
     Column("last_name", String(100)),
+    Column("discarded", Boolean()),
 )
 order_items = Table(
     "order_items",
@@ -31,19 +33,23 @@ order_items = Table(
     Column("_product_id", GUID, ForeignKey("products._sku_id")),
     Column("quantity", Integer),
     Column("order_id", String(36)),
+    Column("discarded", Boolean()),
 )
 orders = Table(
     "orders",
     mapper_registry.metadata,
     Column("uuid", GUID, ForeignKey("skus.uuid"), primary_key=True),
     Column("order_items", String(36)),
+    Column("discarded", Boolean()),
 )
+
 
 products = Table(
     "products",
     mapper_registry.metadata,
     Column("_sku_id", GUID, ForeignKey("skus.uuid"), primary_key=True),
     Column("version_number", Integer),
+    Column("discarded", Boolean()),
 )
 
 batches = Table(
@@ -55,6 +61,7 @@ batches = Table(
     Column("quantity", Integer),
     Column("eta", Date),
     Column("allocated_quantity", Integer),
+    Column("discarded", Boolean()),
 )
 
 order_items_batches_association = Table(

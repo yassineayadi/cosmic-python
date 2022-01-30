@@ -11,6 +11,7 @@ from conftest import (
     make_test_product,
     make_test_sku,
     make_test_sku_product_and_batch,
+    make_test_sku_product_and_order_item,
 )
 
 from allocation.core.domain import (
@@ -28,42 +29,50 @@ from allocation.core.events import OutOfStock
 class TestSKU:
     def test_create_sku(self):
         uuid = uuid4()
-        sku = SKU(uuid=uuid, name="my SKU name")
+        sku = SKU(uuid=uuid, name="my SKU name", discarded=False)
         assert sku.uuid == uuid
         assert sku.name == "my SKU name"
+        assert sku.discarded is False
 
 
 class TestCustomer:
     def test_create_customer(self):
         uuid = uuid4()
-        customer = Customer(uuid=uuid, first_name="Yassine", last_name="Ayadi")
+        customer = Customer(
+            uuid=uuid, first_name="Yassine", last_name="Ayadi", discarded=False
+        )
         assert customer.uuid == uuid
         assert customer.first_name == "Yassine"
         assert customer.last_name == "Ayadi"
+        assert customer.discarded is False
 
 
 class TestOrderItem:
     def test_create_order_item(self):
         sku = make_test_sku()
         uuid = uuid4()
-        order_item = OrderItem(uuid=uuid, sku=sku, quantity=2)
+        order_item = OrderItem(uuid=uuid, sku=sku, quantity=2, discarded=False)
         assert order_item.uuid == uuid
         assert order_item.sku == sku
         assert order_item.quantity == 2
+        assert order_item.discarded is False
 
 
 class TestOrder:
     def test_create_order(self):
         uuid = uuid4()
         sku = make_test_sku()
-        order_item = OrderItem(uuid=uuid, sku=sku, quantity=2)
+        order_item = OrderItem(uuid=uuid, sku=sku, quantity=2, discarded=False)
         customer = make_test_customer()
 
-        order = Order(uuid=uuid, order_items=[order_item], customer=customer)
+        order = Order(
+            uuid=uuid, order_items=[order_item], customer=customer, discarded=False
+        )
 
         assert order.uuid == uuid
         assert order.order_items == [order_item]
         assert order.customer == customer
+        assert order.discarded is False
 
 
 class TestBatch:
@@ -71,12 +80,15 @@ class TestBatch:
         uuid = uuid4()
 
         sku = make_test_sku()
-        batch = Batch(uuid=uuid, sku=sku, quantity=20, eta=date.today())
+        batch = Batch(
+            uuid=uuid, sku=sku, quantity=20, eta=date.today(), discarded=False
+        )
 
         assert batch.uuid == uuid
         assert batch.sku == sku
         assert batch.quantity == 20
         assert batch.eta == date.today()
+        assert batch.discarded is False
 
     def test_batch_allocation(self):
         batch, order_item = make_test_batch_and_order_item(make_test_sku(), 20, 2)
@@ -124,21 +136,28 @@ class TestBatch:
         assert allocation is None
         assert isinstance(product.events.pop(), OutOfStock)
 
-    class TestProduct:
-        def test_create_product(self):
-            sku = make_test_sku()
-            product = Product(sku)
-            assert isinstance(product, Product)
 
-        def test_create_product_with_empty_batches(self):
-            product = make_test_product()
-            assert bool(product.batches) is False
+class TestProduct:
+    def test_create_product(self):
+        sku = make_test_sku()
+        product = Product(sku)
+        assert isinstance(product, Product)
 
-        def test_raise_NonMatchingSKU_when_registering_batch_with_non_matching_sku(
-            self,
-        ):
-            sku = make_test_sku()
-            product = make_test_product(sku)
-            non_matching_batch = make_test_batch()
-            with pytest.raises(NonMatchingSKU):
-                product.register_batch(non_matching_batch)
+    def test_create_product_with_empty_batches(self):
+        product = make_test_product()
+        assert bool(product.batches) is False
+
+    def test_raise_NonMatchingSKU_when_registering_batch_with_non_matching_sku(
+        self,
+    ):
+        sku = make_test_sku()
+        product = make_test_product(sku)
+        non_matching_batch = make_test_batch()
+        with pytest.raises(NonMatchingSKU):
+            product.register_batch(non_matching_batch)
+
+    def test_deregister_order_item(self):
+        sku, product, order_item = make_test_sku_product_and_order_item()
+        product.register_order_item(order_item)
+        product.deregister_order_item(order_item)
+        assert order_item.discarded is True

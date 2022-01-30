@@ -7,6 +7,7 @@ from allocation.core.events import (
     OrderItemAllocated,
     OrderItemCreated,
     OrderItemDeallocated,
+    OrderItemDiscarded,
     OutOfStock,
     ProductCreated,
 )
@@ -23,9 +24,23 @@ class AllocationError(Exception):
 @dataclass
 class Entity:
     uuid: UUID
+    discarded: bool
 
     def to_dict(self) -> Dict:
         return asdict(self)
+
+    # @property
+    # def discarded(self):
+    #     return self._discarded
+    #
+    # @discarded.setter
+    # def discarded(self, value):
+    #     if isinstance(value, bool):
+    #         self._discarded = value
+    #
+    # def __post_init__(self):
+    #     self._discarded = False
+    #
 
 
 @dataclass(unsafe_hash=True)
@@ -100,7 +115,7 @@ class Batch(Entity):
 
 
 class Product:
-    def __init__(self, sku, order_items=None, batches=None):
+    def __init__(self, sku, order_items=None, batches=None, discarded=None):
         batches: Set[Batch] = batches if batches else set()
         order_items: Set[OrderItem] = order_items if order_items else set()
         self.sku = sku
@@ -109,6 +124,7 @@ class Product:
         self.order_items = order_items
         self.events = []
         self.version_number = 0
+        self.discarded = discarded
 
         self.events.append(ProductCreated(sku.uuid))
 
@@ -141,6 +157,18 @@ class Product:
         if self.sku == order_item.sku:
             self.order_items.add(order_item)
             self.events.append(OrderItemCreated(self.sku.uuid, order_item.quantity))
+            self._increment_version()
+        else:
+            raise NonMatchingSKU(
+                f"The Order Item {order_item} does not match the Product SKU."
+            )
+
+    def deregister_order_item(self, order_item: OrderItem) -> None:
+        if self.sku == order_item.sku:
+            self.order_items.remove(order_item)
+            order_item.discarded = True
+            self.events.append(OrderItemDiscarded(self.sku.uuid, order_item.uuid))
+
             self._increment_version()
         else:
             raise NonMatchingSKU(
@@ -181,28 +209,32 @@ class Product:
 
 
 def create_sku(name) -> SKU:
-    return SKU(uuid4(), name)
+    return SKU(uuid4(), False, name)
 
 
-def create_customer_id(first_name: str, last_name: str) -> Customer:
-    return Customer(uuid4(), first_name, last_name)
+def create_customer(first_name: str, last_name: str) -> Customer:
+    return Customer(
+        uuid=uuid4(), first_name=first_name, last_name=last_name, discarded=False
+    )
 
 
 def create_order(order_items: List[OrderItem], customer: Customer) -> Order:
-    return Order(uuid4(), order_items, customer)
+    return Order(
+        uuid=uuid4(), order_items=order_items, customer=customer, discarded=False
+    )
 
 
 def create_product(
     sku: SKU, batches: Set[Batch] = None, order_items: Set[OrderItem] = None
 ) -> Product:
-    return Product(sku, batches=batches, order_items=order_items)
+    return Product(sku, batches=batches, order_items=order_items, discarded=False)
 
 
 def create_order_item(sku: SKU, quantity: int) -> OrderItem:
     uuid = uuid4()
-    return OrderItem(uuid, sku, quantity)
+    return OrderItem(uuid=uuid, sku=sku, quantity=quantity, discarded=False)
 
 
 def create_batch(sku: SKU, quantity: int, eta: date = None):
     uuid = uuid4()
-    return Batch(uuid=uuid, sku=sku, quantity=quantity, eta=eta)
+    return Batch(uuid=uuid, sku=sku, quantity=quantity, eta=eta, discarded=False)
