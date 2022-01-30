@@ -14,8 +14,10 @@ class AbstractRepo(ABC):
     def get(self, reference) -> Product:
         """Retrieves Product by reference."""
         product = self._get(reference)
-        self.seen.add(product)
-        return product
+        if product:
+            self.seen.add(product)
+            return product
+        raise InvalidSKU(f"The SKU with uuid {reference} does not exist.")
 
     def add(self, product: Product) -> None:
         """Adds individual Product to persistent storage."""
@@ -140,3 +142,7 @@ def get_repo(config_name=None) -> AbstractRepo:
     config_name = config_name if config_name else os.environ.get("ENV") or "default"
     repo_class = repos[config_name]
     return repo_class()
+
+
+class InvalidSKU(Exception):
+    pass

@@ -2,8 +2,10 @@ import flasgger
 import marshmallow as ma
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
+from cachy import serializers
 from flask import Blueprint, Flask, jsonify, redirect, request, url_for
 
+import allocation.repositories
 from allocation import config, messagebus, services
 from allocation.core import commands, domain
 from allocation.entrypoints import serializers
@@ -39,6 +41,14 @@ def handle_validation_error(e: ma.ValidationError):
     return jsonify(e.messages), 400
 
 
+@bp.errorhandler(allocation.repositories.InvalidSKU)
+def handle_validator_error(e: allocation.repositories.InvalidSKU):
+    """Handles InvalidSKUError.
+
+    Returns 404 HTTP Response, if action is performed on SKUs not tracked in the repository."""
+    return jsonify(e.args), 404
+
+
 @bp.route("/", methods=["GET", "POST"])
 def index():
     return redirect("/apidocs/")
@@ -46,7 +56,7 @@ def index():
 
 @bp.route("/allocate", methods=["POST"])
 def allocate():
-    """Gets an order item.
+    """Allocates an order item to an available batch.
     ---
     parameters:
       - in: body
@@ -95,6 +105,28 @@ def get_order_item(order_item_id):
         return jsonify(serializers.OrderItem().dump(order_item))
 
 
+@bp.route("/order_item", methods=["DELETE"])
+def delete_order_item():
+    """Deletes an order item.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/DiscardOrderItem'
+    responses:
+      200:
+        description: OK
+    tags:
+     - order items
+    """
+    with serializers.Validate(serializers.DiscardOrderItem(), request) as data:
+        cmd = commands.DiscardOrderItem(**data)
+        services.discard_order_item(cmd, UnitOfWork())
+        return "OK", 200
+
+
 @bp.route("/batch/<uuid:batch_id>", methods=["GET"])
 def get_batch(batch_id):
     """Gets a batch.
@@ -119,7 +151,7 @@ def get_batch(batch_id):
         return jsonify(serializers.Batch().dump(batch))
 
 
-@bp.route("/batch/create", methods=["POST"])
+@bp.route("/batch", methods=["POST"])
 def create_batch():
     """Creates a new batch.
     ---
@@ -143,7 +175,7 @@ def create_batch():
         return response
 
 
-@bp.route("/product/create", methods=["POST"])
+@bp.route("/product", methods=["POST"])
 def create_product():
     """Creates a new product.
     ---

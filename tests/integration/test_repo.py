@@ -8,6 +8,8 @@ from uuid import UUID
 
 import pytest
 import sqlalchemy.exc
+
+from allocation import repositories
 from conftest import (
     make_test_batch,
     make_test_batch_and_order_item,
@@ -15,6 +17,7 @@ from conftest import (
     make_test_product,
     make_test_sku,
     make_test_sku_product_and_batch,
+    make_test_sku_product_and_order_item,
 )
 
 from allocation.core.domain import AllocationError
@@ -189,13 +192,14 @@ def test_get_all_batches():
 
 def test_delete_order_item():
     with UnitOfWork(session_factory) as uow:
-        sku = make_test_sku()
-        product = make_test_product(sku)
-        order_item = make_test_order_item(sku)
-        uow.products.add(product)
+        (
+            sku,
+            product,
+            order_item,
+        ) = make_test_sku_product_and_order_item()
         product.order_items.add(order_item)
-        sku_id = product.sku_id
-        order_item_id = order_item.uuid
+        uow.products.add(product)
+        sku_id, order_item_id = product.sku_id, order_item.uuid
 
     with UnitOfWork(session_factory) as uow:
         product = uow.products.get(sku_id)
@@ -223,6 +227,6 @@ def test_unit_of_work_rollback_on_error():
             uow.products.add(product)
             raise CustomError
 
-    with UnitOfWork() as uow:
-        product = uow.products.get(sku_id)
-        assert product is None
+    with pytest.raises(repositories.InvalidSKU):
+        with UnitOfWork() as uow:
+            uow.products.get(sku_id)

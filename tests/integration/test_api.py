@@ -43,7 +43,7 @@ def test_create_product(client: FlaskClient):
 
     name = make_test_sku().name
     data = {"name": name}
-    response = client.post("product/create", json=data, follow_redirects=True)
+    response = client.post("product", json=data, follow_redirects=True)
     sku_id = response.json["sku"]["uuid"]
 
     with UnitOfWork() as uow:
@@ -64,7 +64,7 @@ def test_create_batch(client: FlaskClient):
         "quantity": 20,
     }
 
-    client.post("/batch/create", json=data)
+    client.post("/batch", json=data)
     with UnitOfWork() as uow:
         product = uow.products.get(sku_id)
         assert len(product.batches) == 1
@@ -81,7 +81,7 @@ def test_redirect_on_create_batch(client: FlaskClient):
         "eta": str(datetime.date.today()),
         "quantity": 20,
     }
-    response = client.post("batch/create", json=data, follow_redirects=True)
+    response = client.post("batch", json=data, follow_redirects=True)
     with UnitOfWork() as uow:
         response_batch = response.json
         product = uow.products.get(sku_id)
@@ -127,3 +127,18 @@ def test_allocation_one_matching_batch_order_item_pair(client: FlaskClient):
         product = uow.products.get(sku_id)
         batch = product.batches.pop()
         assert batch.available_quantity == 18
+
+
+def test_provide_invalid_sku_response_when_sku_not_present_in_repo(client: FlaskClient):
+    sku = make_test_sku()
+
+    response = client.get(f"/product/{sku.uuid}")
+    assert response.status_code == 404
+
+
+def test_bad_request_on_invalid_marshmallow_schema(client: FlaskClient):
+    data = {"sku_id": "abc", "name": 120}
+    response = client.post("/product", json=data)
+    assert response.status_code == 400
+    assert ["Not a valid string."] in response.json.values()
+    assert ["Unknown field."] in response.json.values()
