@@ -5,3 +5,5 @@ __pycache__/
 .pylintrc
 .pytest_cache/
 .pre-commit-config.yaml
+*.egg-info/
+.tox
