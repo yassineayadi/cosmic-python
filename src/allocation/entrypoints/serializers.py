@@ -77,6 +77,11 @@ class Product(Schema):
     version_number = fields.Integer()
 
 
+class UpdateProduct(Schema):
+    sku_id = fields.UUID()
+    name = fields.Str()
+
+
 class Allocate(Schema):
     sku_id = fields.UUID()
     order_item_id = fields.UUID()
@@ -93,9 +98,20 @@ class UpdateOrderItem(Schema):
     quantity = fields.Integer()
 
 
+class ChangeBatchQuantity(Schema):
+    sku_id = fields.UUID()
+    batch_id = fields.UUID()
+    quantity = fields.Integer()
+
+
 class CreateOrderItem(Schema):
     sku_id = fields.UUID()
     quantity = fields.Integer()
+
+
+class DiscardBatch(Schema):
+    sku_id = fields.UUID()
+    batch_id = fields.UUID()
 
 
 # All Schema definitions
@@ -123,3 +139,7 @@ class Validate:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         ...
+
+
+class DiscardProduct(Schema):
+    sku_id = fields.UUID()

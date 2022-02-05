@@ -14,7 +14,7 @@ class AbstractRepo(ABC):
     def get(self, reference) -> Product:
         """Retrieves Product by reference."""
         product = self._get(reference)
-        if product:
+        if product and not product.discarded:
             self.seen.add(product)
             return product
         raise InvalidSKU(f"The SKU with uuid {reference} does not exist.")
@@ -103,7 +103,7 @@ class ProductsRepo(AbstractRepo):
         return (o for p in self.list() for o in p.order_items)
 
     def get_all_batches(self) -> Iterator[Batch]:
-        return (b for p in self.list() for b in p.batches)
+        return (b for p in self.list() for b in p.batches if not b.discarded)
 
 
 class MockRepo(AbstractRepo, Dict):

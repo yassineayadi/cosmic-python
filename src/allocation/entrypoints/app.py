@@ -2,7 +2,6 @@ import flasgger
 import marshmallow as ma
 from apispec.ext.marshmallow import MarshmallowPlugin
 from apispec_webframeworks.flask import FlaskPlugin
-from cachy import serializers
 from flask import Blueprint, Flask, jsonify, redirect, request, url_for
 
 import allocation.repositories
@@ -82,6 +81,28 @@ def get_allocations():
     ...
 
 
+@bp.route("/order_item", methods=["POST"])
+def create_order_item():
+    """Creates an order item.
+    ---
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/OrderItem'
+    responses:
+      200:
+        description: OK
+    tags:
+     - order items
+    """
+    with serializers.Validate(serializers.CreateOrderItem(), request) as data:
+        cmd = commands.CreateOrderItem(**data)
+        order_item_id = services.create_order_item(cmd, UnitOfWork())
+        return redirect(url_for("create_order_item", order_item_id=order_item_id))
+
+
 @bp.route("/order_item/<uuid:order_item_id>", methods=["GET"])
 def get_order_item(order_item_id):
     """Gets an order item.
@@ -150,26 +171,28 @@ def delete_order_item():
         return "OK", 200
 
 
-@bp.route("/order_item", methods=["POST"])
-def create_order_item():
-    """Creates an order item.
+@bp.route("/batch", methods=["POST"])
+def create_batch():
+    """Creates a new batch.
     ---
     parameters:
       - in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/OrderItem'
+          $ref: '#/definitions/CreateBatch'
     responses:
-      200:
-        description: OK
+      302:
+        schema:
+          $ref: '#/definitions/Batch'
     tags:
-     - order items
+      - batches
     """
-    with serializers.Validate(serializers.CreateOrderItem(), request) as data:
-        cmd = commands.CreateOrderItem(**data)
-        order_item_id = services.create_order_item(cmd, UnitOfWork())
-        return redirect(url_for("create_order_item", order_item_id=order_item_id))
+    with serializers.Validate(serializers.CreateBatch(), request) as data:
+        cmd = commands.CreateBatch(**data)
+        batch_id = services.create_batch(cmd, UnitOfWork())
+        response = redirect(url_for(".get_batch", batch_id=batch_id))
+        return response
 
 
 @bp.route("/batch/<uuid:batch_id>", methods=["GET"])
@@ -196,18 +219,19 @@ def get_batch(batch_id):
         return jsonify(serializers.Batch().dump(batch))
 
 
-@bp.route("/batch", methods=["POST"])
-def create_batch():
-    """Creates a new batch.
+@bp.route("/batch/update_quantity", methods=["PUT"])
+def update_batch_quantity():
+    """Updates batch quantity.
     ---
     parameters:
       - in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/CreateBatch'
+          $ref: '#/definitions/ChangeBatchQuantity'
     responses:
       302:
+        description: a batch to be returned
         schema:
           $ref: '#/definitions/Batch'
     tags:
@@ -265,6 +289,51 @@ def get_product(sku_id):
         product = uow.products.get(sku_id)
         data = serializers.Product().dump(product)
         return jsonify(data)
+
+
+@bp.route("/product", methods=["PUT"])
+def update_product():
+    """Updates a product.
+    ---
+    parameters:
+      - in: body
+        cname: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateProduct'
+    responses:
+      200:
+        schema:
+          $ref: '#/definitions/Product'
+    tags:
+      - products
+    """
+    with serializers.Validate(serializers.UpdateProduct(), request) as data:
+        cmd = commands.UpdateProduct(**data)
+        product_id = services.update_product(cmd, UnitOfWork())
+        return product_id
+
+
+@bp.route("/product", methods=["DELETE"])
+def discard_product():
+    """Deletes a product.
+    ---
+    parameters:
+      - in: path
+        cname: sku_id
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: OK
+    tags:
+      - products
+    """
+    with serializers.Validate(serializers.DiscardProduct(), request) as data:
+        cmd = commands.DiscardProduct(**data)
+        services.discard_product(cmd, UnitOfWork())
+        return "OK", 200
 
 
 @bp.route("/products", methods=["GET"])

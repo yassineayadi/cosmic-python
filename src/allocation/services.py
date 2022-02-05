@@ -79,6 +79,21 @@ def change_batch_quantity(
         return batch.uuid
 
 
+def discard_batch(cmd: commands.DiscardBatch, uow: AbstractUnitOfWork) -> None:
+    with uow:
+        product = uow.products.get(cmd.sku_id)
+        batch = next((b for b in product.batches if b.uuid == cmd.batch_id), None)
+        if batch:
+            product.deregister_batch(batch)
+
+
+def update_product(cmd: commands.UpdateProduct, uow: AbstractUnitOfWork) -> UUID:
+    with uow:
+        product = uow.products.get(cmd.sku_id)
+        product.sku.name = cmd.name
+        return product.sku.uuid
+
+
 def update_order_item(cmd: commands.UpdateOrderItem, uow: AbstractUnitOfWork) -> UUID:
     with uow:
         product = uow.products.get(cmd.sku_id)
@@ -87,3 +102,12 @@ def update_order_item(cmd: commands.UpdateOrderItem, uow: AbstractUnitOfWork) ->
         )
         order_item.quantity = cmd.quantity
         return order_item.uuid
+
+
+def discard_product(cmd: commands.DiscardProduct, uow: AbstractUnitOfWork) -> None:
+    with uow:
+        product = uow.products.get(cmd.sku_id)
+        if product:
+            for b in product.batches:
+                discard_batch(b, uow)
+            product.discarded = True

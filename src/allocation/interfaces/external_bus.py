@@ -15,7 +15,7 @@ class RedisClient(redis.Redis):
         self.active_subscriptions = set()
 
     def publish_channel_message(self, message: core.Message) -> None:
-        channel = message.name
+        channel = message.cname
         event_data = pickle.dumps(message)
         self.publish(channel, event_data)
 

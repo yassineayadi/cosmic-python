@@ -8,11 +8,11 @@ class Event:
     uuid: UUID = field(init=False, default_factory=uuid4)
 
     @property
-    def name(self) -> str:
+    def cname(self) -> str:
         return self.__class__.__name__
 
     def to_dict(self) -> Dict:
-        return {**{"event": self.name}, **asdict(self)}
+        return {**{"event": self.cname}, **asdict(self)}
 
 
 @dataclass
@@ -25,6 +25,7 @@ class ProductCreated(Event):
     sku_id: UUID
 
 
+# noinspection DuplicatedCode
 @dataclass
 class OrderItemCreated(Event):
     sku_id: UUID

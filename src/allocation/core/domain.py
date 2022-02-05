@@ -105,7 +105,7 @@ class Product:
     def __init__(self, sku, order_items=None, batches=None, discarded=None):
         batches: Set[Batch] = batches if batches else set()
         order_items: Set[OrderItem] = order_items if order_items else set()
-        self.sku = sku
+        self.sku: SKU = sku
         self.sku_id = sku.uuid
         self.batches = batches
         self.order_items = order_items
@@ -162,6 +162,12 @@ class Product:
                 f"The Order Item {order_item} does not match the Product SKU."
             )
 
+    # noinspection PyMethodMayBeStatic
+    def deregister_batch(self, batch: Batch) -> None:
+        for o in iter(batch.allocated_order_items):
+            batch.deallocate_available_quantity(o)
+        batch.discarded = True
+
     def allocate(self, order_item: OrderItem) -> Batch:
         if order_item not in self.order_items:
             self.register_order_item(order_item)
@@ -190,6 +196,9 @@ class Product:
                 )
             )
         return batch
+
+    def discard(self) -> None:
+        self.discarded = True
 
     def _increment_version(self) -> None:
         self.version_number += 1

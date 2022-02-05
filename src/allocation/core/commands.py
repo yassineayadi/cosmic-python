@@ -11,11 +11,12 @@ class Command:
     uuid: UUID = field(init=False, default_factory=uuid4)
 
     @property
-    def name(self) -> str:
+    def cname(self) -> str:
+        """Returns the command name."""
         return self.__class__.__name__
 
     def to_dict(self) -> Dict:
-        return {**{"event": self.name}, **asdict(self)}
+        return {**{"event": self.cname}, **asdict(self)}
 
 
 class Discard(Command):
@@ -53,7 +54,7 @@ class CreateProductCommand(Command):
 
 @dataclass
 class CreateBatch(Command):
-    sku_id: domain.SKU
+    sku_id: UUID
     quantity: int
     eta: datetime.datetime
 
@@ -70,3 +71,14 @@ class UpdateOrderItem(Command):
     sku_id: UUID
     order_item_id: UUID
     quantity: int
+
+
+@dataclass
+class UpdateProduct(Command):
+    sku_id: UUID
+    name: str
+
+
+@dataclass
+class DiscardProduct(Command):
+    sku_id: UUID
