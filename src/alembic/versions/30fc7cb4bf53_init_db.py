@@ -33,7 +33,7 @@ def upgrade():
         sa.Column(
             "uuid", allocation.interfaces.database.datatypes.GUID(), nullable=False
         ),
-        sa.Column("cname", sa.String(length=255), nullable=True),
+        sa.Column("name", sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint("uuid"),
     )
     op.create_table(
