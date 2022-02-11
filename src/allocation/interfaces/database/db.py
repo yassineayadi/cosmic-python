@@ -2,8 +2,10 @@ import sqlalchemy
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
-
+from allocation.config import get_config
 from allocation.interfaces.database import orm
+
+config = get_config()
 
 
 class SessionFactory:
@@ -26,11 +28,13 @@ session_factory = SessionFactory(engine)
 def do_connect(dbapi_connection, connection_record):
     # disable pysqlite's emitting of the BEGIN statement entirely.
     # also stops it from emitting COMMIT before any DDL.
-    dbapi_connection.isolation_level = None
+    if config.DB_TYPE in ("SQLITE", "MEMORY"):
+        dbapi_connection.isolation_level = None
 
 
 @event.listens_for(engine, "begin")
 def do_begin(conn: sqlalchemy.engine.Connection):
     # emit our own BEGIN
-    if not conn.in_transaction():
-        conn.exec_driver_sql("BEGIN")
+    if config.DB_TYPE in ("SQLITE", "MEMORY"):
+        if not conn.in_transaction():
+            conn.exec_driver_sql("BEGIN")

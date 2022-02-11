@@ -6,7 +6,10 @@ services:
       dockerfile: Dockerfile
     environment:
       - DB_PATH=prod.db
-      - DB_TYPE=SQLite3
+      - DB_TYPE=SQLITE
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
     ports:
       - "5000:5000"
     depends_on:
