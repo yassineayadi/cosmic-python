@@ -11,6 +11,7 @@ WORKDIR $APP_PATH
 
 # setup virtual environment
 RUN python -m venv venv
+ENV PYTHONPATH tests
 ENV VIRTUAL_ENV $APP_PATH/venv
 ENV PATH $VIRTUAL_ENV/bin:$PATH
 COPY --chown=allocation requirements.txt requirements.txt
