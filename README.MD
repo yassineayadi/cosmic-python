@@ -5,6 +5,7 @@ This repository is used to track a sample implementation of the project describe
 
 
 ## Change log:
+* 2022-02-12: Decoupled database instance from application with separate Postgres container and default fallback to sqlite3.
 * 2022-01-29: Implemented API documentation (Open API specifications) including a Swagger UI for user discovery.
 * 2022-01-15: Implemented Marshmallow for deserialization/serialization of objects. Included thin wrapper to handle validation errors gracefully and surface error message to client.
 * 2022-01-01: Implemented the UnitOfWork pattern to better represent atomic events. The UnitofWork Object opens and closes DB related transaction
