@@ -1,4 +1,5 @@
 # Python Architecture Sample Project Implementation
+[![Tests](https://github.com/yassineayadi/cosmic-python/actions/workflows/tests.yaml/badge.svg)](https://github.com/yassineayadi/cosmic-python/actions/workflows/tests.yaml)
 
 This repository is used to track a sample implementation of the project described in the Python Architecture book "Architecture Patterns with Python".
 
