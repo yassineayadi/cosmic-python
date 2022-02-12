@@ -297,7 +297,7 @@ def update_product():
     ---
     parameters:
       - in: body
-        cname: body
+        name: body
         required: true
         schema:
           $ref: '#/definitions/UpdateProduct'
@@ -319,11 +319,11 @@ def discard_product():
     """Deletes a product.
     ---
     parameters:
-      - in: path
-        cname: sku_id
+      - in: body
+        name: body
         required: true
         schema:
-          type: string
+          $ref: '#/definitions/DiscardProduct'
     responses:
       200:
         description: OK

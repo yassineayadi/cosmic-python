@@ -114,6 +114,10 @@ class DiscardBatch(Schema):
     batch_id = fields.UUID()
 
 
+class DiscardProduct(Schema):
+    sku_id = fields.UUID()
+
+
 # All Schema definitions
 definitions = tuple(
     s for s in locals().values() if inspect.isclass(s) and issubclass(s, Schema)
@@ -139,7 +143,3 @@ class Validate:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         ...
-
-
-class DiscardProduct(Schema):
-    sku_id = fields.UUID()
