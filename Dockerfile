@@ -21,7 +21,7 @@ RUN pip install -r requirements.txt
 # copy application files
 COPY --chown=allocation src src
 COPY --chown=allocation tests tests
-COPY --chown=allocation setup.py pyproject.toml tox.ini ./
+COPY --chown=allocation setup.py pyproject.toml tox.ini gunicorn.conf.py ./
 RUN pip install -e .
 
 # setup db
@@ -33,4 +33,4 @@ ENV FLASK_ENV production
 ENV ENV production
 
 EXPOSE 5000
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn"]

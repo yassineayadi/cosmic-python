@@ -79,3 +79,4 @@ wrapt==1.13.3
 zipp==3.7.0
 psycopg2==2.9.3
 wheel
+gunicorn==20.1.0

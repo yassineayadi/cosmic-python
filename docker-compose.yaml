@@ -24,3 +24,12 @@ services:
       - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
     ports:
       - "5432:5432"
+  nginx:
+    image: "nginx:latest"
+    ports:
+      - "8080:80"
+      - "443:443"
+    volumes:
+      - ./services/nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - "allocation"
