@@ -5,14 +5,22 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - DB_PATH=prod.db
-      - DB_TYPE=SQLITE
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
+      - REDIS_HOST=$REDIS_HOST
+      - REDIS_PORT=$REDIS_PORT
+      - REDIS_DB=$REDIS_DB
+      - DB_TYPE=$DB_TYPE
+      - SQLALCHEMY_DATABASE_URI=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@database:$DB_PORT/postgres
     ports:
       - "5000:5000"
     depends_on:
       - "redis"
+      - "database"
   redis:
     image: "redis:alpine"
+  database:
+    image: "postgres:latest"
+    environment:
+      - POSTGRES_USER=$POSTGRES_USER
+      - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+    ports:
+      - "5432:5432"

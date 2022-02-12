@@ -1,7 +1,7 @@
 FROM python:3.8-alpine
 
 # install gcc for cryptography library
-RUN apk --update --upgrade add gcc musl-dev jpeg-dev zlib-dev libffi-dev cairo-dev pango-dev gdk-pixbuf-dev
+RUN apk --update --upgrade add gcc musl-dev jpeg-dev zlib-dev libffi-dev cairo-dev pango-dev gdk-pixbuf-dev libpq-dev
 
 # setup application user
 RUN adduser -D allocation

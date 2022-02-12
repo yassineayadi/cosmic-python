@@ -136,7 +136,12 @@ def create_engine():
     config = get_config()
     # Enable database sharing for in-memory SQlite3 DB
     poolclass = StaticPool if config.DB_TYPE == "MEMORY" else None
+    isolation_level = (
+        "REPEATABLE READ" if config.DB_TYPE == "PSYCOPG" else "SERIALIZABLE"
+    )
     engine = sqlalchemy.create_engine(
-        config.SQLA_CONNECTION_STRING, poolclass=poolclass
+        config.SQLA_CONNECTION_STRING,
+        poolclass=poolclass,
+        isolation_level=isolation_level,
     )
     return engine
